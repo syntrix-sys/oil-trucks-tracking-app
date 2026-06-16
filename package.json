@@ -1,0 +1,16 @@
+{
+  "name": "oiltrack-pro",
+  "private": true,
+  "version": "1.0.0",
+  "workspaces": [
+    "packages/*",
+    "mock-server",
+    "web"
+  ],
+  "scripts": {
+    "generate": "npm run generate --workspace=mock-server",
+    "mock-server": "npm run start --workspace=mock-server",
+    "mock-server:fast": "npm run start:fast --workspace=mock-server",
+    "web": "npm run dev --workspace=web"
+  }
+}

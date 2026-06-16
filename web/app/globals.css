@@ -1,0 +1,166 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Font */
+  --font-sans: var(--font-inter), system-ui, sans-serif;
+
+  /* Border radius — slightly tighter */
+  --radius-sm: calc(var(--radius) - 2px);
+  --radius-md: var(--radius);
+  --radius-lg: calc(var(--radius) + 2px);
+  --radius-xl: calc(var(--radius) + 6px);
+
+  /* shadcn color utilities */
+  --color-background:           var(--background);
+  --color-foreground:           var(--foreground);
+  --color-card:                 var(--card);
+  --color-card-foreground:      var(--card-foreground);
+  --color-popover:              var(--popover);
+  --color-popover-foreground:   var(--popover-foreground);
+  --color-primary:              var(--primary);
+  --color-primary-foreground:   var(--primary-foreground);
+  --color-secondary:            var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted:                var(--muted);
+  --color-muted-foreground:     var(--muted-foreground);
+  --color-accent:               var(--accent);
+  --color-accent-foreground:    var(--accent-foreground);
+  --color-destructive:          var(--destructive);
+  --color-border:               var(--border);
+  --color-input:                var(--input);
+  --color-ring:                 var(--ring);
+
+  /* OilTrack semantic tokens */
+  --color-success: var(--success);
+  --color-warning: var(--warning);
+  --color-danger:  var(--danger);
+
+  /* Animations */
+  --animate-pulse-ring:     pulse-ring 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+  --animate-slide-in-right: slide-in-right 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  --animate-fade-in:        fade-in 0.2s ease-out;
+  --animate-spin:           spin 0.8s linear infinite;
+
+  @keyframes pulse-ring {
+    0%, 100% { box-shadow: 0 0 0 0 oklch(0.627 0.243 29.2 / 60%); }
+    50%       { box-shadow: 0 0 0 10px oklch(0.627 0.243 29.2 / 0%); }
+  }
+  @keyframes slide-in-right {
+    from { transform: translateX(100%); opacity: 0; }
+    to   { transform: translateX(0);   opacity: 1; }
+  }
+  @keyframes fade-in {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes spin {
+    to { transform: rotate(360deg); }
+  }
+  @keyframes accordion-down {
+    from { height: 0; }
+    to   { height: var(--radix-accordion-content-height); }
+  }
+  @keyframes accordion-up {
+    from { height: var(--radix-accordion-content-height); }
+    to   { height: 0; }
+  }
+}
+
+/* ── OilTrack "Deep Space" palette ───────────────────────────────────────── */
+:root {
+  --radius: 0.5rem;
+
+  /* Backgrounds — distinct layers */
+  --background:           oklch(0.092 0.048 264.7);   /* #06101E deep space navy */
+  --foreground:           oklch(0.930 0.018 245.0);   /* #DDE8F8 blue-tinted white */
+  --card:                 oklch(0.138 0.050 262.0);   /* #0B1828 dark card */
+  --card-foreground:      oklch(0.930 0.018 245.0);
+  --popover:              oklch(0.138 0.050 262.0);
+  --popover-foreground:   oklch(0.930 0.018 245.0);
+
+  /* Primary: electric sky-blue (#38BDF8 / sky-400) */
+  --primary:              oklch(0.793 0.135 215.5);
+  --primary-foreground:   oklch(0.092 0.048 264.7);
+
+  /* Secondary surfaces */
+  --secondary:            oklch(0.185 0.055 263.0);   /* #0F1E32 */
+  --secondary-foreground: oklch(0.930 0.018 245.0);
+  --muted:                oklch(0.148 0.050 262.0);
+  --muted-foreground:     oklch(0.565 0.058 248.0);   /* #5070A0 blue-slate */
+  --accent:               oklch(0.185 0.055 263.0);
+  --accent-foreground:    oklch(0.930 0.018 245.0);
+
+  /* States */
+  --destructive:          oklch(0.627 0.243 29.2);    /* red-500 */
+
+  /* Borders & inputs */
+  --border:               oklch(0.215 0.062 264.0);   /* #142035 — visible navy */
+  --input:                oklch(0.168 0.055 263.0);
+  --ring:                 oklch(0.793 0.135 215.5);
+
+  /* Semantic */
+  --success: oklch(0.764 0.196 149.5);   /* #4ADE80 vivid green */
+  --warning: oklch(0.790 0.165 65.0);    /* #F59E0B amber */
+  --danger:  oklch(0.627 0.243 29.2);    /* #EF4444 red */
+}
+
+/* ── Base ────────────────────────────────────────────────────────────────── */
+* {
+  @apply border-border;
+  box-sizing: border-box;
+}
+
+body {
+  @apply bg-background text-foreground;
+  font-feature-settings: "rlig" 1, "calt" 1;
+}
+
+/* ── Animation utilities ─────────────────────────────────────────────────── */
+.animate-pulse-ring     { animation: var(--animate-pulse-ring); }
+.animate-slide-in-right { animation: var(--animate-slide-in-right); }
+.animate-fade-in        { animation: var(--animate-fade-in); }
+
+/* ── Scrollbar ───────────────────────────────────────────────────────────── */
+::-webkit-scrollbar       { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+::-webkit-scrollbar-thumb:hover { background: var(--muted-foreground); }
+
+/* ── MapLibre GL overrides ───────────────────────────────────────────────── */
+.mapboxgl-popup-content {
+  background-color: var(--card) !important;
+  color: var(--foreground) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: 0 8px 32px oklch(0 0 0 / 50%) !important;
+  padding: 10px 12px !important;
+}
+.mapboxgl-popup-tip {
+  border-top-color: var(--card) !important;
+  border-bottom-color: var(--card) !important;
+}
+.mapboxgl-ctrl-attrib,
+.mapboxgl-ctrl-logo { filter: invert(1) brightness(2); }
+
+/* ── Container ───────────────────────────────────────────────────────────── */
+@utility container {
+  margin-inline: auto;
+  padding-inline: 1.5rem;
+  @media (width >= 1400px) {
+    max-width: 1400px;
+  }
+}
+
+/* ── Glow utilities ──────────────────────────────────────────────────────── */
+@utility glow-primary {
+  box-shadow: 0 0 16px oklch(0.793 0.135 215.5 / 25%);
+}
+@utility glow-success {
+  box-shadow: 0 0 12px oklch(0.764 0.196 149.5 / 25%);
+}
+@utility glow-destructive {
+  box-shadow: 0 0 12px oklch(0.627 0.243 29.2 / 25%);
+}

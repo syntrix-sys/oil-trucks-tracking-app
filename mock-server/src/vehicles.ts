@@ -1,0 +1,268 @@
+import { Driver } from "@oiltrack/types";
+
+/**
+ * Static fleet & driver data (§7.1). `route.waypoints` is populated later by
+ * the generator (positionTrack.ts) by interpolating ROUTE_ANCHORS.
+ */
+export interface VehicleDef {
+  id: string;
+  registrationNumber: string;
+  make: string;
+  model: string;
+  year: number;
+  tankCapacityLitres: number;
+  emptyWeightKg: number;
+  maxGrossWeightKg: number;
+  maxSpeedKmh: number;
+  cruiseSpeedKmh: number;
+  driver: Driver;
+  routeName: string;
+  origin: string;
+  destination: string;
+  routeDistanceKm: number;
+  /** Tick-0 progress along the route, 0-1 (§7.3) */
+  startProgressPercent: number;
+  startOdometerKm: number;
+  startingRunningHours: number;
+  initialFuelPercent: number;
+  initialGrossWeightKg: number;
+  ambientTempCelsius: number;
+}
+
+const NOW = Date.now();
+const hoursAgo = (h: number) => new Date(NOW - h * 60 * 60 * 1000).toISOString();
+
+export const VEHICLE_DEFS: VehicleDef[] = [
+  {
+    id: "TRK-001",
+    registrationNumber: "LHE-4421",
+    make: "Volvo",
+    model: "FH16",
+    year: 2021,
+    tankCapacityLitres: 30000,
+    emptyWeightKg: 12500,
+    maxGrossWeightKg: 40000,
+    maxSpeedKmh: 90,
+    cruiseSpeedKmh: 75,
+    driver: {
+      id: "DRV-001",
+      name: "Muhammad Usman",
+      licenseNumber: "LHE-DL-2018-10234",
+      phone: "+92-301-2345001",
+      onDutySince: hoursAgo(4.5),
+    },
+    routeName: "Karachi Port → Hyderabad Bypass",
+    origin: "Karachi Port",
+    destination: "Hyderabad Bypass",
+    routeDistanceKm: 168,
+    startProgressPercent: 0.22,
+    startOdometerKm: 84230,
+    startingRunningHours: 9120,
+    initialFuelPercent: 72,
+    initialGrossWeightKg: 34000,
+    ambientTempCelsius: 38,
+  },
+  {
+    id: "TRK-002",
+    registrationNumber: "KHI-7732",
+    make: "Mercedes-Benz",
+    model: "Actros 3348",
+    year: 2022,
+    tankCapacityLitres: 28000,
+    emptyWeightKg: 12000,
+    maxGrossWeightKg: 38000,
+    maxSpeedKmh: 90,
+    cruiseSpeedKmh: 80,
+    driver: {
+      id: "DRV-002",
+      name: "Ahmed Raza",
+      licenseNumber: "KHI-DL-2019-55821",
+      phone: "+92-302-2345002",
+      onDutySince: hoursAgo(3.2),
+    },
+    routeName: "Lahore Ring Road → Gujranwala Toll",
+    origin: "Lahore Ring Road",
+    destination: "Gujranwala Toll",
+    routeDistanceKm: 82,
+    startProgressPercent: 0.35,
+    startOdometerKm: 61445,
+    startingRunningHours: 6890,
+    initialFuelPercent: 88,
+    initialGrossWeightKg: 32500,
+    ambientTempCelsius: 33,
+  },
+  {
+    id: "TRK-003",
+    registrationNumber: "MUL-1198",
+    make: "MAN",
+    model: "TGX 26.540",
+    year: 2020,
+    tankCapacityLitres: 32000,
+    emptyWeightKg: 13000,
+    maxGrossWeightKg: 40000,
+    maxSpeedKmh: 90,
+    cruiseSpeedKmh: 85,
+    driver: {
+      id: "DRV-003",
+      name: "Ali Hassan",
+      licenseNumber: "MUL-DL-2017-33102",
+      phone: "+92-303-2345003",
+      onDutySince: hoursAgo(5.0),
+    },
+    routeName: "Multan Bypass → Khanewal Junction",
+    origin: "Multan Bypass",
+    destination: "Khanewal Junction",
+    routeDistanceKm: 74,
+    startProgressPercent: 0.18,
+    startOdometerKm: 112780,
+    startingRunningHours: 12450,
+    initialFuelPercent: 65,
+    initialGrossWeightKg: 36800,
+    ambientTempCelsius: 33,
+  },
+  {
+    id: "TRK-004",
+    registrationNumber: "ISB-3345",
+    make: "DAF",
+    model: "XF 530",
+    year: 2023,
+    tankCapacityLitres: 33000,
+    emptyWeightKg: 13500,
+    maxGrossWeightKg: 38000,
+    maxSpeedKmh: 90,
+    cruiseSpeedKmh: 78,
+    driver: {
+      id: "DRV-004",
+      name: "Tariq Mahmood",
+      licenseNumber: "ISB-DL-2021-77410",
+      phone: "+92-304-2345004",
+      onDutySince: hoursAgo(2.4),
+    },
+    routeName: "Rawalpindi Toll Plaza → Attock Bridge",
+    origin: "Rawalpindi Toll Plaza",
+    destination: "Attock Bridge",
+    routeDistanceKm: 93,
+    startProgressPercent: 0.41,
+    startOdometerKm: 29100,
+    startingRunningHours: 3210,
+    initialFuelPercent: 91,
+    initialGrossWeightKg: 36500,
+    ambientTempCelsius: 33,
+  },
+  {
+    id: "TRK-005",
+    registrationNumber: "KHI-9901",
+    make: "Scania",
+    model: "R 500",
+    year: 2021,
+    tankCapacityLitres: 31000,
+    emptyWeightKg: 13000,
+    maxGrossWeightKg: 40000,
+    maxSpeedKmh: 90,
+    cruiseSpeedKmh: 82,
+    driver: {
+      id: "DRV-005",
+      name: "Bilal Shahzad",
+      licenseNumber: "KHI-DL-2018-90233",
+      phone: "+92-305-2345005",
+      onDutySince: hoursAgo(6.1),
+    },
+    routeName: "Karachi Superhighway → Nooriabad",
+    origin: "Karachi Superhighway",
+    destination: "Nooriabad",
+    routeDistanceKm: 110,
+    startProgressPercent: 0.28,
+    startOdometerKm: 75560,
+    startingRunningHours: 8430,
+    initialFuelPercent: 55,
+    initialGrossWeightKg: 33000,
+    ambientTempCelsius: 38,
+  },
+  {
+    id: "TRK-006",
+    registrationNumber: "LHE-6678",
+    make: "Volvo",
+    model: "FM 460",
+    year: 2022,
+    tankCapacityLitres: 29000,
+    emptyWeightKg: 12500,
+    maxGrossWeightKg: 38000,
+    maxSpeedKmh: 90,
+    cruiseSpeedKmh: 76,
+    driver: {
+      id: "DRV-006",
+      name: "Faisal Iqbal",
+      licenseNumber: "LHE-DL-2020-44219",
+      phone: "+92-306-2345006",
+      onDutySince: hoursAgo(3.8),
+    },
+    routeName: "Lahore Thokar → Sahiwal District",
+    origin: "Lahore Thokar",
+    destination: "Sahiwal District",
+    routeDistanceKm: 140,
+    startProgressPercent: 0.55,
+    startOdometerKm: 98320,
+    startingRunningHours: 10870,
+    initialFuelPercent: 79,
+    initialGrossWeightKg: 33800,
+    ambientTempCelsius: 33,
+  },
+  {
+    id: "TRK-007",
+    registrationNumber: "SUK-2234",
+    make: "Mercedes-Benz",
+    model: "Arocs",
+    year: 2020,
+    tankCapacityLitres: 27000,
+    emptyWeightKg: 12000,
+    maxGrossWeightKg: 36000,
+    maxSpeedKmh: 85,
+    cruiseSpeedKmh: 70,
+    driver: {
+      id: "DRV-007",
+      name: "Nadeem Khan",
+      licenseNumber: "SUK-DL-2019-21987",
+      phone: "+92-307-2345007",
+      onDutySince: hoursAgo(7.3),
+    },
+    routeName: "Sukkur Barrage → Shikarpur Bypass",
+    origin: "Sukkur Barrage",
+    destination: "Shikarpur Bypass",
+    routeDistanceKm: 68,
+    startProgressPercent: 0.12,
+    startOdometerKm: 143900,
+    startingRunningHours: 15680,
+    initialFuelPercent: 48,
+    initialGrossWeightKg: 31300,
+    ambientTempCelsius: 38,
+  },
+  {
+    id: "TRK-008",
+    registrationNumber: "PES-8812",
+    make: "MAN",
+    model: "TGS 18.400",
+    year: 2019,
+    tankCapacityLitres: 25000,
+    emptyWeightKg: 11500,
+    maxGrossWeightKg: 34000,
+    maxSpeedKmh: 85,
+    cruiseSpeedKmh: 65,
+    driver: {
+      id: "DRV-008",
+      name: "Zubair Ahmed",
+      licenseNumber: "PES-DL-2016-66554",
+      phone: "+92-308-2345008",
+      onDutySince: hoursAgo(8.6),
+    },
+    routeName: "Peshawar GT Road → Nowshera Interchange",
+    origin: "Peshawar GT Road",
+    destination: "Nowshera Interchange",
+    routeDistanceKm: 55,
+    startProgressPercent: 0.48,
+    startOdometerKm: 187450,
+    startingRunningHours: 19340,
+    initialFuelPercent: 61,
+    initialGrossWeightKg: 27200,
+    ambientTempCelsius: 33,
+  },
+];

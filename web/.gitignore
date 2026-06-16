@@ -1,0 +1,28 @@
+# ── Next.js ──────────────────────────────────────────────────────────────────
+.next/
+out/
+.vercel/
+
+# ── Dependencies ─────────────────────────────────────────────────────────────
+node_modules/
+
+# ── Build ─────────────────────────────────────────────────────────────────────
+*.tsbuildinfo
+next-env.d.ts
+
+# ── Environment & secrets ─────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+!.env.local.example
+# .env.local is intentionally NOT ignored so demo WS URL is committed
+# Remove the next line if you add real secrets to .env.local
+# .env.local
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db

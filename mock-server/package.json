@@ -1,0 +1,23 @@
+{
+  "name": "mock-server",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "generate": "ts-node scripts/generate.ts",
+    "start": "ts-node src/index.ts",
+    "start:fast": "cross-env TICK_INTERVAL_MS=200 ts-node src/index.ts"
+  },
+  "dependencies": {
+    "@oiltrack/types": "*",
+    "ws": "^8.17.0",
+    "seedrandom": "^3.0.5"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "ts-node": "^10.9.0",
+    "cross-env": "^7.0.3",
+    "@types/node": "^20.12.0",
+    "@types/seedrandom": "^3.0.8",
+    "@types/ws": "^8.5.10"
+  }
+}
