@@ -1,7 +1,7 @@
 # ── Dependencies ─────────────────────────────────────────────────────────────
 node_modules/
 
-# ── TypeScript build output ───────────────────────────────────────────────────
+# ── TypeScript build output (Railway builds this during deploy) ───────────────
 dist/
 *.tsbuildinfo
 
@@ -10,9 +10,7 @@ dist/
 .env.*
 !.env.example
 
-# ── Generated seed data (large file, regenerate with npm run generate) ────────
-# Comment this out if you want to commit the pre-generated seed for CI/CD
-src/seed-data.json
+# src/seed-data.json is intentionally committed so Railway has data at startup
 
 # ── Logs ─────────────────────────────────────────────────────────────────────
 *.log

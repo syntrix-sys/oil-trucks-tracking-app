@@ -9,7 +9,7 @@ import {
   TelemetryBatchMessage,
 } from "@oiltrack/types";
 
-const WS_PORT = parseInt(process.env.WS_PORT || "8080", 10);
+const WS_PORT = parseInt(process.env.PORT || process.env.WS_PORT || "8080", 10);
 const TICK_INTERVAL_MS = parseInt(process.env.TICK_INTERVAL_MS || "2000", 10);
 const SEED_FILE = process.env.SEED_FILE || path.join(__dirname, "seed-data.json");
 

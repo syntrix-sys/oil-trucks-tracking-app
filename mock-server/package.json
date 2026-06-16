@@ -3,8 +3,11 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
+    "build": "tsc --project tsconfig.json",
+    "start": "node dist/src/index.js",
+    "dev": "ts-node src/index.ts",
+    "dev:fast": "cross-env TICK_INTERVAL_MS=200 ts-node src/index.ts",
     "generate": "ts-node scripts/generate.ts",
-    "start": "ts-node src/index.ts",
     "start:fast": "cross-env TICK_INTERVAL_MS=200 ts-node src/index.ts"
   },
   "dependencies": {
