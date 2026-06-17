@@ -8,7 +8,7 @@ import type {
 
 export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
-const MAX_HISTORY_TICKS = 1800; // 60 min @ 2s/tick
+const MAX_HISTORY_TICKS = 1800;
 
 export interface TelemetryStoreState {
   vehicles: Record<string, Vehicle>;
@@ -20,10 +20,12 @@ export interface TelemetryStoreState {
   connectionStatus: ConnectionStatus;
   currentTick: number;
   lastUpdate: string | null;
+  cargoLitresOverrides: Record<string, number>;
 
   setVehicles: (vehicles: Record<string, Vehicle>) => void;
   ingestTelemetryBatch: (tick: number, frames: Record<string, TelemetryFrame>) => void;
   ingestDriverAlert: (message: DriverAlertMessage) => void;
+  ingestWeightUpdate: (vehicleId: string, cargoLitres: number) => void;
   dismissDriverAlert: (vehicleId: string) => void;
   acknowledgeAlert: (alertId: string) => void;
   acknowledgeAllAlerts: (alertIds: string[]) => void;
@@ -41,6 +43,7 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   connectionStatus: "connecting",
   currentTick: 0,
   lastUpdate: null,
+  cargoLitresOverrides: {},
 
   setVehicles: (vehicles) => set({ vehicles }),
 
@@ -60,9 +63,7 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
       if (frame.alerts.length > 0) {
         const existingIds = new Set(nextActiveAlerts.map((a) => a.id));
         const fresh = frame.alerts.filter((a) => !existingIds.has(a.id));
-        if (fresh.length > 0) {
-          nextActiveAlerts = [...nextActiveAlerts, ...fresh];
-        }
+        if (fresh.length > 0) nextActiveAlerts = [...nextActiveAlerts, ...fresh];
       }
     }
 
@@ -77,6 +78,12 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
 
   ingestDriverAlert: (message) => {
     set({ driverAlerts: [...get().driverAlerts, message] });
+  },
+
+  ingestWeightUpdate: (vehicleId, cargoLitres) => {
+    set({
+      cargoLitresOverrides: { ...get().cargoLitresOverrides, [vehicleId]: cargoLitres },
+    });
   },
 
   dismissDriverAlert: (vehicleId) => {

@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "OilTrack Pro",
+    "slug": "oiltrack-mobile",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0F172A",
+    "splash": {
+      "resizeMode": "contain",
+      "backgroundColor": "#0F172A"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0F172A"
+      },
+      "permissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "ios": {
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "OilTrack Pro needs your location to track the active delivery journey."
+      }
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "OilTrack Pro needs your location to track your delivery journey."
+        }
+      ],
+      "expo-asset",
+      "expo-font"
+    ],
+    "scheme": "oiltrack",
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

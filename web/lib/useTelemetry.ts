@@ -16,6 +16,7 @@ export function useTelemetry() {
   const connectionStatus = useTelemetryStore((s) => s.connectionStatus);
   const currentTick = useTelemetryStore((s) => s.currentTick);
   const lastUpdate = useTelemetryStore((s) => s.lastUpdate);
+  const cargoLitresOverrides = useTelemetryStore((s) => s.cargoLitresOverrides);
 
   return {
     vehicles,
@@ -26,6 +27,7 @@ export function useTelemetry() {
     connectionStatus,
     currentTick,
     lastUpdate,
+    cargoLitresOverrides,
   };
 }
 

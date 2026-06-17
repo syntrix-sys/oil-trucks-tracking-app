@@ -9,8 +9,11 @@
   ],
   "scripts": {
     "generate": "npm run generate --workspace=mock-server",
-    "mock-server": "npm run start --workspace=mock-server",
-    "mock-server:fast": "npm run start:fast --workspace=mock-server",
-    "web": "npm run dev --workspace=web"
+    "mock-server": "npm run dev --workspace=mock-server",
+    "mock-server:fast": "npm run dev:fast --workspace=mock-server",
+    "web": "npm run dev --workspace=web",
+    "mobile": "cd mobile && npm run start",
+    "mobile:android": "cd mobile && npm run android",
+    "mobile:ios": "cd mobile && npm run ios"
   }
 }

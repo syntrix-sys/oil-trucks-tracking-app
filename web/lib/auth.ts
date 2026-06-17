@@ -7,7 +7,7 @@ export const DEMO_CREDENTIALS = {
 };
 
 export function login(username: string, password: string): boolean {
-  if (username === DEMO_CREDENTIALS.username && password === DEMO_CREDENTIALS.password) {
+  if (username.trim() === DEMO_CREDENTIALS.username && password.trim() === DEMO_CREDENTIALS.password) {
     localStorage.setItem(AUTH_KEY, "true");
     localStorage.setItem(USER_KEY, username);
     return true;

@@ -1,26 +1,26 @@
 import { Driver } from "@oiltrack/types";
 
-/**
- * Static fleet & driver data (§7.1). `route.waypoints` is populated later by
- * the generator (positionTrack.ts) by interpolating ROUTE_ANCHORS.
- */
 export interface VehicleDef {
   id: string;
   registrationNumber: string;
+  chassisNumber: string;
   make: string;
   model: string;
   year: number;
+  numberOfWheels: number;
   tankCapacityLitres: number;
   emptyWeightKg: number;
   maxGrossWeightKg: number;
   maxSpeedKmh: number;
   cruiseSpeedKmh: number;
+  cnic: string;
+  tripStartDate: string;
+  tripEndDate: string;
   driver: Driver;
   routeName: string;
   origin: string;
   destination: string;
   routeDistanceKm: number;
-  /** Tick-0 progress along the route, 0-1 (§7.3) */
   startProgressPercent: number;
   startOdometerKm: number;
   startingRunningHours: number;
@@ -30,26 +30,36 @@ export interface VehicleDef {
 }
 
 const NOW = Date.now();
-const hoursAgo = (h: number) => new Date(NOW - h * 60 * 60 * 1000).toISOString();
+const hoursAgo   = (h: number) => new Date(NOW - h * 3600 * 1000).toISOString();
+const daysAgo    = (d: number) => new Date(NOW - d * 86400 * 1000).toISOString();
+const daysAhead  = (d: number) => new Date(NOW + d * 86400 * 1000).toISOString();
 
 export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-001",
     registrationNumber: "LHE-4421",
+    chassisNumber: "YV2R4HA23LA112233",
     make: "Volvo",
     model: "FH16",
     year: 2021,
+    numberOfWheels: 18,
     tankCapacityLitres: 30000,
     emptyWeightKg: 12500,
     maxGrossWeightKg: 40000,
     maxSpeedKmh: 90,
     cruiseSpeedKmh: 75,
+    cnic: "35202-1234567-9",
+    tripStartDate: daysAgo(2),
+    tripEndDate: daysAhead(1),
     driver: {
       id: "DRV-001",
       name: "Muhammad Usman",
       licenseNumber: "LHE-DL-2018-10234",
       phone: "+92-301-2345001",
       onDutySince: hoursAgo(4.5),
+      cnicNumber: "35202-1234567-9",
+      fatherName: "Muhammad Nawaz",
+      permanentAddress: "House 12, Street 5, Gulshan-e-Ravi, Lahore",
     },
     routeName: "Karachi Port → Hyderabad Bypass",
     origin: "Karachi Port",
@@ -65,20 +75,28 @@ export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-002",
     registrationNumber: "KHI-7732",
+    chassisNumber: "WDB9740321L224455",
     make: "Mercedes-Benz",
     model: "Actros 3348",
     year: 2022,
+    numberOfWheels: 18,
     tankCapacityLitres: 28000,
     emptyWeightKg: 12000,
     maxGrossWeightKg: 38000,
     maxSpeedKmh: 90,
     cruiseSpeedKmh: 80,
+    cnic: "42101-9876543-1",
+    tripStartDate: daysAgo(1),
+    tripEndDate: daysAhead(2),
     driver: {
       id: "DRV-002",
       name: "Ahmed Raza",
       licenseNumber: "KHI-DL-2019-55821",
       phone: "+92-302-2345002",
       onDutySince: hoursAgo(3.2),
+      cnicNumber: "42101-9876543-1",
+      fatherName: "Raza Ali Khan",
+      permanentAddress: "Plot 45, Block 7, Gulshan-e-Iqbal, Karachi",
     },
     routeName: "Lahore Ring Road → Gujranwala Toll",
     origin: "Lahore Ring Road",
@@ -94,20 +112,28 @@ export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-003",
     registrationNumber: "MUL-1198",
+    chassisNumber: "WMAN73ZZ2AM336677",
     make: "MAN",
     model: "TGX 26.540",
     year: 2020,
+    numberOfWheels: 10,
     tankCapacityLitres: 32000,
     emptyWeightKg: 13000,
     maxGrossWeightKg: 40000,
     maxSpeedKmh: 90,
     cruiseSpeedKmh: 85,
+    cnic: "36302-5678901-2",
+    tripStartDate: daysAgo(3),
+    tripEndDate: daysAhead(0),
     driver: {
       id: "DRV-003",
       name: "Ali Hassan",
       licenseNumber: "MUL-DL-2017-33102",
       phone: "+92-303-2345003",
       onDutySince: hoursAgo(5.0),
+      cnicNumber: "36302-5678901-2",
+      fatherName: "Hassan Muhammad Khan",
+      permanentAddress: "Mohalla Rashidabad, Near Eid Gah, Multan",
     },
     routeName: "Multan Bypass → Khanewal Junction",
     origin: "Multan Bypass",
@@ -123,20 +149,28 @@ export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-004",
     registrationNumber: "ISB-3345",
+    chassisNumber: "XLFTGK430EH448899",
     make: "DAF",
     model: "XF 530",
     year: 2023,
+    numberOfWheels: 18,
     tankCapacityLitres: 33000,
     emptyWeightKg: 13500,
     maxGrossWeightKg: 38000,
     maxSpeedKmh: 90,
     cruiseSpeedKmh: 78,
+    cnic: "61101-2345678-3",
+    tripStartDate: daysAgo(0),
+    tripEndDate: daysAhead(3),
     driver: {
       id: "DRV-004",
       name: "Tariq Mahmood",
       licenseNumber: "ISB-DL-2021-77410",
       phone: "+92-304-2345004",
       onDutySince: hoursAgo(2.4),
+      cnicNumber: "61101-2345678-3",
+      fatherName: "Mahmood Ahmed Siddiqui",
+      permanentAddress: "House 78, G-9/4, Islamabad",
     },
     routeName: "Rawalpindi Toll Plaza → Attock Bridge",
     origin: "Rawalpindi Toll Plaza",
@@ -152,20 +186,28 @@ export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-005",
     registrationNumber: "KHI-9901",
+    chassisNumber: "YS2H4X20006550011",
     make: "Scania",
     model: "R 500",
     year: 2021,
+    numberOfWheels: 18,
     tankCapacityLitres: 31000,
     emptyWeightKg: 13000,
     maxGrossWeightKg: 40000,
     maxSpeedKmh: 90,
     cruiseSpeedKmh: 82,
+    cnic: "42201-3456789-4",
+    tripStartDate: daysAgo(4),
+    tripEndDate: daysAhead(1),
     driver: {
       id: "DRV-005",
       name: "Bilal Shahzad",
       licenseNumber: "KHI-DL-2018-90233",
       phone: "+92-305-2345005",
       onDutySince: hoursAgo(6.1),
+      cnicNumber: "42201-3456789-4",
+      fatherName: "Shahzad Hussain Malik",
+      permanentAddress: "Plot 23, Sector B, Orangi Town, Karachi",
     },
     routeName: "Karachi Superhighway → Nooriabad",
     origin: "Karachi Superhighway",
@@ -181,20 +223,28 @@ export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-006",
     registrationNumber: "LHE-6678",
+    chassisNumber: "YV2FM4HA22LA661122",
     make: "Volvo",
     model: "FM 460",
     year: 2022,
+    numberOfWheels: 10,
     tankCapacityLitres: 29000,
     emptyWeightKg: 12500,
     maxGrossWeightKg: 38000,
     maxSpeedKmh: 90,
     cruiseSpeedKmh: 76,
+    cnic: "35201-4567890-5",
+    tripStartDate: daysAgo(2),
+    tripEndDate: daysAhead(2),
     driver: {
       id: "DRV-006",
       name: "Faisal Iqbal",
       licenseNumber: "LHE-DL-2020-44219",
       phone: "+92-306-2345006",
       onDutySince: hoursAgo(3.8),
+      cnicNumber: "35201-4567890-5",
+      fatherName: "Iqbal Ahmed Chaudhry",
+      permanentAddress: "House 67, Model Town Extension, Lahore",
     },
     routeName: "Lahore Thokar → Sahiwal District",
     origin: "Lahore Thokar",
@@ -210,20 +260,28 @@ export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-007",
     registrationNumber: "SUK-2234",
+    chassisNumber: "WDB9740221L773344",
     make: "Mercedes-Benz",
     model: "Arocs",
     year: 2020,
+    numberOfWheels: 10,
     tankCapacityLitres: 27000,
     emptyWeightKg: 12000,
     maxGrossWeightKg: 36000,
     maxSpeedKmh: 85,
     cruiseSpeedKmh: 70,
+    cnic: "45501-5678901-6",
+    tripStartDate: daysAgo(1),
+    tripEndDate: daysAhead(1),
     driver: {
       id: "DRV-007",
       name: "Nadeem Khan",
       licenseNumber: "SUK-DL-2019-21987",
       phone: "+92-307-2345007",
       onDutySince: hoursAgo(7.3),
+      cnicNumber: "45501-5678901-6",
+      fatherName: "Khan Muhammad Brohi",
+      permanentAddress: "House 34, Rohatak Road, Sukkur",
     },
     routeName: "Sukkur Barrage → Shikarpur Bypass",
     origin: "Sukkur Barrage",
@@ -239,20 +297,28 @@ export const VEHICLE_DEFS: VehicleDef[] = [
   {
     id: "TRK-008",
     registrationNumber: "PES-8812",
+    chassisNumber: "WMAN73ZZ9BM884455",
     make: "MAN",
     model: "TGS 18.400",
     year: 2019,
+    numberOfWheels: 10,
     tankCapacityLitres: 25000,
     emptyWeightKg: 11500,
     maxGrossWeightKg: 34000,
     maxSpeedKmh: 85,
     cruiseSpeedKmh: 65,
+    cnic: "17301-6789012-7",
+    tripStartDate: daysAgo(3),
+    tripEndDate: daysAhead(4),
     driver: {
       id: "DRV-008",
       name: "Zubair Ahmed",
       licenseNumber: "PES-DL-2016-66554",
       phone: "+92-308-2345008",
       onDutySince: hoursAgo(8.6),
+      cnicNumber: "17301-6789012-7",
+      fatherName: "Ahmed Gul Afridi",
+      permanentAddress: "Qissa Khwani Bazaar, Old City, Peshawar",
     },
     routeName: "Peshawar GT Road → Nowshera Interchange",
     origin: "Peshawar GT Road",

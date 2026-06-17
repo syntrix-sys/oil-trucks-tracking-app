@@ -7,7 +7,9 @@ import {
   SeedFrame,
   StatusResponse,
   TelemetryBatchMessage,
+  Vehicle,
 } from "@oiltrack/types";
+import { VEHICLE_DEFS } from "./vehicles";
 
 const WS_PORT = parseInt(process.env.PORT || process.env.WS_PORT || "8080", 10);
 const TICK_INTERVAL_MS = parseInt(process.env.TICK_INTERVAL_MS || "2000", 10);
@@ -17,12 +19,34 @@ console.log(`Loading seed data from ${SEED_FILE}...`);
 const seedData: SeedData = JSON.parse(fs.readFileSync(SEED_FILE, "utf-8"));
 console.log(`Loaded ${seedData.totalTicks} ticks for ${Object.keys(seedData.vehicles).length} vehicles.`);
 
+// Augment seed vehicles with new fields from VEHICLE_DEFS (CNIC, chassis, trip dates, etc.)
+const defMap = new Map(VEHICLE_DEFS.map((d) => [d.id, d]));
+const augmentedVehicles: Record<string, Vehicle> = {};
+for (const [id, vehicle] of Object.entries(seedData.vehicles)) {
+  const def = defMap.get(id);
+  augmentedVehicles[id] = {
+    ...vehicle,
+    chassisNumber: def?.chassisNumber,
+    numberOfWheels: def?.numberOfWheels,
+    cnic: def?.cnic,
+    tripStartDate: def?.tripStartDate,
+    tripEndDate: def?.tripEndDate,
+    driver: {
+      ...vehicle.driver,
+      cnicNumber: def?.driver.cnicNumber,
+      fatherName: def?.driver.fatherName,
+      permanentAddress: def?.driver.permanentAddress,
+    },
+  };
+}
+
+// In-memory weight overrides from mobile app: vehicleId → cargoLitres
+const weightOverrides = new Map<string, number>();
+
 let currentTick = 0;
 let sessionStartTime = Date.now();
 let complete = false;
 
-/** Recursively rewrite `timestamp`/`triggeredAt` ISO fields (stored as epoch-relative
- * offsets at generation time) to wall-clock time based on sessionStartTime. */
 function rewriteTimestamps<T>(value: T): T {
   if (Array.isArray(value)) {
     return value.map((v) => rewriteTimestamps(v)) as unknown as T;
@@ -43,11 +67,17 @@ function rewriteTimestamps<T>(value: T): T {
 }
 
 function buildTelemetryBatch(frame: SeedFrame): TelemetryBatchMessage {
-  return {
-    type: "TELEMETRY_BATCH",
-    tick: frame.tick,
-    frames: rewriteTimestamps(frame.data),
-  };
+  const frames = rewriteTimestamps(frame.data);
+
+  // Inject weight overrides from mobile app
+  for (const [vehicleId, litres] of weightOverrides) {
+    const f = frames[vehicleId];
+    if (f) {
+      f.weight = { ...f.weight, cargoLitres: litres };
+    }
+  }
+
+  return { type: "TELEMETRY_BATCH", tick: frame.tick, frames };
 }
 
 function broadcast(message: unknown) {
@@ -84,12 +114,20 @@ function resetSession() {
   currentTick = 0;
   sessionStartTime = Date.now();
   complete = false;
+  weightOverrides.clear();
   console.log("Session reset to tick 0.");
 }
 
-// --- HTTP server (status / reset) + WebSocket upgrade on the same port ---
+function readBody(req: http.IncomingMessage): Promise<string> {
+  return new Promise((resolve, reject) => {
+    let body = "";
+    req.on("data", (chunk) => (body += chunk));
+    req.on("end", () => resolve(body));
+    req.on("error", reject);
+  });
+}
 
-const server = http.createServer((req, res) => {
+const server = http.createServer(async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -101,14 +139,9 @@ const server = http.createServer((req, res) => {
   }
 
   if (req.method === "GET" && req.url === "/status") {
-    const elapsedSeconds = currentTick * (seedData.tickIntervalSeconds);
+    const elapsedSeconds = currentTick * seedData.tickIntervalSeconds;
     const remainingSeconds = (seedData.totalTicks - currentTick) * seedData.tickIntervalSeconds;
-    const status: StatusResponse = {
-      tick: currentTick,
-      totalTicks: seedData.totalTicks,
-      elapsedSeconds,
-      remainingSeconds,
-    };
+    const status: StatusResponse = { tick: currentTick, totalTicks: seedData.totalTicks, elapsedSeconds, remainingSeconds };
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify(status));
     return;
@@ -116,7 +149,7 @@ const server = http.createServer((req, res) => {
 
   if (req.method === "GET" && req.url === "/vehicles") {
     res.writeHead(200, { "Content-Type": "application/json" });
-    res.end(JSON.stringify(seedData.vehicles));
+    res.end(JSON.stringify(augmentedVehicles));
     return;
   }
 
@@ -124,6 +157,31 @@ const server = http.createServer((req, res) => {
     resetSession();
     res.writeHead(200, { "Content-Type": "application/json" });
     res.end(JSON.stringify({ ok: true, tick: currentTick }));
+    return;
+  }
+
+  // Mobile app weight sync: POST /vehicle/:id/weight  body: { liters: number }
+  const weightMatch = req.method === "POST" && req.url?.match(/^\/vehicle\/([^/]+)\/weight$/);
+  if (weightMatch) {
+    const vehicleId = weightMatch[1];
+    try {
+      const body = await readBody(req);
+      const { liters } = JSON.parse(body) as { liters: number };
+      if (typeof liters !== "number" || liters < 0) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid liters value" }));
+        return;
+      }
+      weightOverrides.set(vehicleId, liters);
+      // Broadcast weight update to all web clients
+      broadcast({ type: "WEIGHT_UPDATE", vehicleId, cargoLitres: liters, updatedAt: new Date().toISOString() });
+      console.log(`Weight override: ${vehicleId} → ${liters} L`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, vehicleId, cargoLitres: liters }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Bad request" }));
+    }
     return;
   }
 
@@ -136,7 +194,6 @@ const wss = new WebSocketServer({ server });
 wss.on("connection", (socket) => {
   console.log(`Client connected (${wss.clients.size} total)`);
 
-  // Send the latest frame immediately so a new client doesn't wait up to TICK_INTERVAL_MS.
   if (currentTick > 0 || currentTick < seedData.totalTicks) {
     const lastTick = Math.min(currentTick, seedData.totalTicks - 1);
     socket.send(JSON.stringify(buildTelemetryBatch(seedData.frames[lastTick])));
@@ -147,8 +204,10 @@ wss.on("connection", (socket) => {
 
 server.listen(WS_PORT, () => {
   console.log(`OilTrack Pro mock server listening on ws://localhost:${WS_PORT}`);
-  console.log(`  GET  /status — current tick / elapsed / remaining`);
-  console.log(`  POST /reset  — restart the session at tick 0`);
+  console.log(`  GET  /status                    — current tick / elapsed / remaining`);
+  console.log(`  GET  /vehicles                  — fleet metadata (augmented)`);
+  console.log(`  POST /reset                     — restart session at tick 0`);
+  console.log(`  POST /vehicle/:id/weight        — mobile weight override`);
   console.log(`Tick interval: ${TICK_INTERVAL_MS}ms (${seedData.totalTicks} ticks total)`);
 });
 

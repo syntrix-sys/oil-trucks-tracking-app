@@ -10,9 +10,26 @@ export function formatTime(iso: string | null | undefined): string {
   return new Date(iso).toLocaleTimeString(undefined, { hour12: false });
 }
 
+/** Formats an ISO timestamp as DD/MM/YYYY HH:MM */
 export function formatDateTime(iso: string | null | undefined): string {
   if (!iso) return "--";
-  return new Date(iso).toLocaleString();
+  const d = new Date(iso);
+  const dd   = String(d.getDate()).padStart(2, "0");
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  const hh   = String(d.getHours()).padStart(2, "0");
+  const min  = String(d.getMinutes()).padStart(2, "0");
+  return `${dd}/${mm}/${yyyy} ${hh}:${min}`;
+}
+
+/** Formats an ISO timestamp as DD/MM/YYYY only */
+export function formatDate(iso: string | null | undefined): string {
+  if (!iso) return "--";
+  const d = new Date(iso);
+  const dd   = String(d.getDate()).padStart(2, "0");
+  const mm   = String(d.getMonth() + 1).padStart(2, "0");
+  const yyyy = d.getFullYear();
+  return `${dd}/${mm}/${yyyy}`;
 }
 
 export const STATUS_COLORS: Record<VehicleStatus, string> = {
@@ -37,13 +54,9 @@ export const RATIO_BAND_COLORS: Record<RatioBand, string> = {
 
 export function statusLabel(status: VehicleStatus): string {
   switch (status) {
-    case "moving":
-      return "Moving";
-    case "idle":
-      return "Idle";
-    case "stopped":
-      return "Stopped";
-    case "alert":
-      return "Alert";
+    case "moving":  return "Moving";
+    case "idle":    return "Idle";
+    case "stopped": return "Stopped";
+    case "alert":   return "Alert";
   }
 }
