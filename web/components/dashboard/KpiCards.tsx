@@ -1,80 +1,101 @@
 import type { TelemetryFrame, Vehicle } from "@oiltrack/types";
-import { Truck, Gauge, AlertTriangle, Navigation } from "lucide-react";
-import { Badge } from "@/components/ui/badge";
+import { Truck, Gauge, AlertTriangle, Navigation, Droplets } from "lucide-react";
 import { deriveVehicleStatus } from "@/lib/vehicleStatus";
 import { formatNumber } from "@/lib/formatters";
-import { cn } from "@/lib/utils";
 
 interface KpiCardsProps {
   vehicles: Record<string, Vehicle>;
   telemetry: Record<string, TelemetryFrame>;
+  cargoLitresOverrides?: Record<string, number>;
 }
 
 const CARDS = [
   {
     key: "total",
     icon: Truck,
-    accent: "text-primary",
-    iconBg: "bg-primary/15",
-    borderTop: "border-t-primary/60",
+    clayClass: "clay-green",
+    iconStyle: {
+      background: "linear-gradient(160deg, oklch(0.580 0.130 152) 0%, oklch(0.517 0.125 152) 100%)",
+      border: "2px solid #1b6438",
+      boxShadow: "0 2px 0 #1b6438",
+    },
+    valueColor: "text-primary",
   },
   {
     key: "moving",
     icon: Navigation,
-    accent: "text-success",
-    iconBg: "bg-success/15",
-    borderTop: "border-t-success/60",
+    clayClass: "clay-emerald",
+    iconStyle: {
+      background: "linear-gradient(160deg, #34d399 0%, #10b981 100%)",
+      border: "2px solid #059669",
+      boxShadow: "0 2px 0 #059669",
+    },
+    valueColor: "text-emerald-700",
   },
   {
     key: "alerts",
     icon: AlertTriangle,
-    accent: "text-destructive",
-    iconBg: "bg-destructive/15",
-    borderTop: "border-t-destructive/60",
+    clayClass: "clay-red",
+    iconStyle: {
+      background: "linear-gradient(160deg, #f87171 0%, #ef4444 100%)",
+      border: "2px solid #b91c1c",
+      boxShadow: "0 2px 0 #b91c1c",
+    },
+    valueColor: "text-red-600",
   },
   {
     key: "speed",
     icon: Gauge,
-    accent: "text-warning",
-    iconBg: "bg-warning/15",
-    borderTop: "border-t-warning/60",
+    clayClass: "clay-amber",
+    iconStyle: {
+      background: "linear-gradient(160deg, #fbbf24 0%, #f59e0b 100%)",
+      border: "2px solid #b45309",
+      boxShadow: "0 2px 0 #b45309",
+    },
+    valueColor: "text-amber-700",
+  },
+  {
+    key: "cargo",
+    icon: Droplets,
+    clayClass: "clay-sky",
+    iconStyle: {
+      background: "linear-gradient(160deg, #38bdf8 0%, #0ea5e9 100%)",
+      border: "2px solid #0369a1",
+      boxShadow: "0 2px 0 #0369a1",
+    },
+    valueColor: "text-sky-700",
   },
 ] as const;
 
-export default function KpiCards({ vehicles, telemetry }: KpiCardsProps) {
-  const frames = Object.values(telemetry);
-  const total = Object.keys(vehicles).length;
-  const moving = frames.filter((f) => deriveVehicleStatus(f) === "moving").length;
-  const alertCount = frames.reduce((s, f) => s + f.alerts.filter((a) => !a.acknowledged).length, 0);
-  const avgSpeed = frames.length ? frames.reduce((s, f) => s + f.speed.current, 0) / frames.length : 0;
+const LABELS = ["Total Fleet", "In Motion", "Alerts", "Avg Speed", "Total Cargo"];
+
+export default function KpiCards({ vehicles, telemetry, cargoLitresOverrides = {} }: KpiCardsProps) {
+  const frames      = Object.values(telemetry);
+  const total       = Object.keys(vehicles).length;
+  const moving      = frames.filter((f) => deriveVehicleStatus(f) === "moving").length;
+  const alertCount  = frames.reduce((s, f) => s + f.alerts.filter((a) => !a.acknowledged).length, 0);
+  const avgSpeed    = frames.length ? frames.reduce((s, f) => s + f.speed.current, 0) / frames.length : 0;
+  const totalCargoL = Object.values(cargoLitresOverrides).reduce((s, l) => s + l, 0);
 
   const data = [
-    { label: "Total Vehicles", value: total.toString(),                  sub: `${moving} in motion`,    badge: null as React.ReactNode },
-    { label: "Moving",         value: moving.toString(),                 sub: `${total - moving} idle`, badge: moving > 0 ? <Badge variant="success">Active</Badge> : null },
-    { label: "Active Alerts",  value: alertCount.toString(),             sub: alertCount === 0 ? "All clear" : "Needs attention", badge: alertCount > 0 ? <Badge variant="destructive">Action</Badge> : <Badge variant="success">Clear</Badge> },
-    { label: "Avg Speed",      value: `${formatNumber(avgSpeed, 0)} km/h`, sub: "Fleet average",         badge: null },
+    { value: total.toString(),                    sub: `${moving} active` },
+    { value: moving.toString(),                   sub: `${total - moving} idle` },
+    { value: alertCount.toString(),               sub: alertCount === 0 ? "All clear" : "Attention" },
+    { value: `${formatNumber(avgSpeed, 0)} km/h`, sub: "Fleet avg" },
+    { value: `${formatNumber(totalCargoL, 0)} L`, sub: `${Object.keys(cargoLitresOverrides).length} synced` },
   ];
 
   return (
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 md:gap-3">
-      {data.map(({ label, value, sub, badge }, i) => {
-        const { icon: Icon, accent, iconBg, borderTop } = CARDS[i];
+    <div className="grid grid-cols-2 lg:grid-cols-5 gap-2 md:gap-2.5">
+      {data.map(({ value, sub }, i) => {
+        const { icon: Icon, clayClass, iconStyle, valueColor } = CARDS[i];
         return (
-          <div
-            key={label}
-            className={cn(
-              "relative overflow-hidden rounded-lg border bg-card px-4 pt-3 pb-4 border-t-2",
-              borderTop
-            )}
-          >
-            <div className="flex items-start justify-between mb-2">
-              <div className={cn("p-1.5 rounded-md", iconBg)}>
-                <Icon className={cn("h-3.5 w-3.5", accent)} />
-              </div>
-              {badge}
+          <div key={LABELS[i]} className={`relative rounded-2xl px-3.5 py-3 overflow-hidden ${clayClass}`}>
+            <div className="w-7 h-7 rounded-lg flex items-center justify-center mb-2" style={iconStyle}>
+              <Icon className="h-3.5 w-3.5 text-white" />
             </div>
-            <p className={cn("text-2xl font-bold tabular-nums", accent)}>{value}</p>
-            <p className="text-[11px] font-medium text-foreground/70 mt-0.5">{label}</p>
+            <p className={`text-xl font-black tabular-nums leading-none ${valueColor}`}>{value}</p>
+            <p className="text-[11px] font-bold text-foreground/70 mt-1 leading-tight">{LABELS[i]}</p>
             <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>
           </div>
         );

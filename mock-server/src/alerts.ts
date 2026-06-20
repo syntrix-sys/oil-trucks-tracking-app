@@ -4,8 +4,25 @@ import {
   speedWeightRatio,
   speedThresholds,
   grossWeightThresholds,
+  LatLng,
 } from "@oiltrack/types";
 import { VehicleDef } from "./vehicles";
+import { ROUTE_ANCHORS } from "./routes";
+import { haversineDistanceKm } from "./generator/positionTrack";
+
+const GEOFENCE_RADIUS_KM = 5;
+
+/** Returns the distance (km) from `point` to the nearest anchor waypoint for `vehicleId`. */
+function distanceToRoute(vehicleId: string, point: LatLng): number {
+  const anchors = ROUTE_ANCHORS[vehicleId];
+  if (!anchors || anchors.length === 0) return 0;
+  let min = Infinity;
+  for (const anchor of anchors) {
+    const d = haversineDistanceKm(point, anchor);
+    if (d < min) min = d;
+  }
+  return min;
+}
 
 export interface AlertInputs {
   speedKmh: number;
@@ -13,6 +30,7 @@ export interface AlertInputs {
   containerTempCelsius: number;
   engineCoolantCelsius: number;
   fuelLevelPercent: number;
+  location?: LatLng;
 }
 
 /** Threshold + ratio rule evaluation (§4). Returns the alerts active for one frame. */
@@ -104,6 +122,16 @@ export function evaluateAlerts(
     alerts.push(
       mk("LOW_FUEL", "warning", `Fuel level ${inputs.fuelLevelPercent.toFixed(0)}% is low (below ${THRESHOLDS.fuelLevel.warning}%)`)
     );
+  }
+
+  // Geofence breach — vehicle is too far from its expected route corridor
+  if (inputs.location) {
+    const distKm = distanceToRoute(vehicle.id, inputs.location);
+    if (distKm > GEOFENCE_RADIUS_KM) {
+      alerts.push(
+        mk("GEOFENCE_BREACH", "critical", `Vehicle is ${distKm.toFixed(1)} km from route corridor (limit ${GEOFENCE_RADIUS_KM} km)`)
+      );
+    }
   }
 
   return alerts;

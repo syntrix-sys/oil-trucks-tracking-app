@@ -40,8 +40,48 @@ for (const [id, vehicle] of Object.entries(seedData.vehicles)) {
   };
 }
 
+// Registered drivers: cnicNumber → RegisteredDriver
+interface RegisteredDriver {
+  id: string;
+  cnicNumber: string;
+  name: string;
+  phone: string;
+  licenseNumber: string;
+  fatherName: string;
+  permanentAddress: string;
+  vehicleId: string;
+  registeredAt: string;
+}
+const registeredDrivers = new Map<string, RegisteredDriver>();
+
+// Pre-seed from VEHICLE_DEFS so existing drivers can authenticate immediately
+for (const def of VEHICLE_DEFS) {
+  if (def.driver.cnicNumber) {
+    registeredDrivers.set(def.driver.cnicNumber, {
+      id: def.driver.id,
+      cnicNumber: def.driver.cnicNumber,
+      name: def.driver.name,
+      phone: def.driver.phone,
+      licenseNumber: def.driver.licenseNumber,
+      fatherName: def.driver.fatherName ?? "",
+      permanentAddress: def.driver.permanentAddress ?? "",
+      vehicleId: def.id,
+      registeredAt: new Date().toISOString(),
+    });
+  }
+}
+
 // In-memory weight overrides from mobile app: vehicleId → cargoLitres
 const weightOverrides = new Map<string, number>();
+
+// Active panic alerts: vehicleId → { alertId, driverName, location, timestamp }
+interface PanicRecord { alertId: string; driverName: string; location: { lat: number; lng: number } | null; timestamp: string; }
+const panicAlerts = new Map<string, PanicRecord>();
+
+// Load history: vehicleId → LoadEntry[] (latest first, capped at 50)
+interface LoadEntry { id: string; vehicleId: string; timestamp: string; totalLiters: number; note?: string; syncedFromMobile: boolean; }
+const loadHistory = new Map<string, LoadEntry[]>();
+const LOAD_HISTORY_MAX = 50;
 
 let currentTick = 0;
 let sessionStartTime = Date.now();
@@ -178,6 +218,242 @@ const server = http.createServer(async (req, res) => {
       console.log(`Weight override: ${vehicleId} → ${liters} L`);
       res.writeHead(200, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ ok: true, vehicleId, cargoLitres: liters }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Bad request" }));
+    }
+    return;
+  }
+
+  // POST /vehicle/:id/load — mobile submits a new load entry
+  const loadMatch = req.method === "POST" && req.url?.match(/^\/vehicle\/([^/]+)\/load$/);
+  if (loadMatch) {
+    const vehicleId = loadMatch[1];
+    try {
+      const body = await readBody(req);
+      const { totalLiters, note } = JSON.parse(body) as { totalLiters: number; note?: string };
+      if (typeof totalLiters !== "number" || totalLiters < 0) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid totalLiters" }));
+        return;
+      }
+      const entry: LoadEntry = {
+        id: `LOAD-${vehicleId}-${Date.now()}`,
+        vehicleId,
+        timestamp: new Date().toISOString(),
+        totalLiters,
+        note: note?.trim() || undefined,
+        syncedFromMobile: true,
+      };
+      const history = loadHistory.get(vehicleId) ?? [];
+      history.unshift(entry);
+      if (history.length > LOAD_HISTORY_MAX) history.pop();
+      loadHistory.set(vehicleId, history);
+      // Also update the weight override so telemetry reflects the new load
+      weightOverrides.set(vehicleId, totalLiters);
+      broadcast({ type: "LOAD_UPDATE", vehicleId, entry });
+      broadcast({ type: "WEIGHT_UPDATE", vehicleId, cargoLitres: totalLiters, updatedAt: entry.timestamp });
+      console.log(`Load entry: ${vehicleId} → ${totalLiters} L${note ? ` (${note})` : ""}`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, entry }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Bad request" }));
+    }
+    return;
+  }
+
+  // GET /vehicle/:id/load/history — returns last 50 load entries
+  const loadHistoryMatch = req.method === "GET" && req.url?.match(/^\/vehicle\/([^/]+)\/load\/history$/);
+  if (loadHistoryMatch) {
+    const vehicleId = loadHistoryMatch[1];
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(loadHistory.get(vehicleId) ?? []));
+    return;
+  }
+
+  // Panic alert: POST /vehicle/:id/panic
+  const panicMatch = req.method === "POST" && req.url?.match(/^\/vehicle\/([^/]+)\/panic$/);
+  if (panicMatch) {
+    const vehicleId = panicMatch[1];
+    try {
+      const body = await readBody(req);
+      const { driverName, location } = JSON.parse(body) as { driverName: string; location: { lat: number; lng: number } | null };
+      const alertId = `PANIC-${vehicleId}-${Date.now()}`;
+      const timestamp = new Date().toISOString();
+      const record: PanicRecord = { alertId, driverName, location: location ?? null, timestamp };
+      panicAlerts.set(vehicleId, record);
+      broadcast({ type: "PANIC_ALERT", alertId, vehicleId, driverName, location: location ?? null, timestamp });
+      console.log(`PANIC ALERT: ${vehicleId} — ${driverName}`);
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, alertId }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Bad request" }));
+    }
+    return;
+  }
+
+  // Cancel panic: POST /vehicle/:id/panic/cancel
+  const panicCancelMatch = req.method === "POST" && req.url?.match(/^\/vehicle\/([^/]+)\/panic\/cancel$/);
+  if (panicCancelMatch) {
+    const vehicleId = panicCancelMatch[1];
+    const record = panicAlerts.get(vehicleId);
+    panicAlerts.delete(vehicleId);
+    broadcast({ type: "PANIC_CANCELLED", vehicleId, alertId: record?.alertId ?? "" });
+    console.log(`Panic cancelled: ${vehicleId}`);
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify({ ok: true }));
+    return;
+  }
+
+  // POST /vehicles/add — register a new vehicle in the in-memory fleet
+  if (req.method === "POST" && req.url === "/vehicles/add") {
+    try {
+      const body = await readBody(req);
+      const payload = JSON.parse(body) as {
+        registrationNumber: string; chassisNumber?: string;
+        make: string; model: string; year: number;
+        numberOfWheels?: number; tankCapacityLitres: number;
+        emptyWeightKg: number; maxGrossWeightKg: number; maxSpeedKmh?: number;
+        origin?: string; destination?: string;
+        tripStartDate?: string; tripEndDate?: string;
+        cnic?: string;
+      };
+      if (!payload.registrationNumber || !payload.make || !payload.model || !payload.year
+          || !payload.tankCapacityLitres || !payload.emptyWeightKg || !payload.maxGrossWeightKg) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Missing required fields" }));
+        return;
+      }
+      // Generate next vehicle ID
+      const existing = Object.keys(augmentedVehicles);
+      const maxNum   = existing.reduce((max, id) => {
+        const n = parseInt(id.replace("TRK-", ""), 10);
+        return isNaN(n) ? max : Math.max(max, n);
+      }, 0);
+      const newId = `TRK-${String(maxNum + 1).padStart(3, "0")}`;
+      if (augmentedVehicles[newId]) {
+        res.writeHead(409, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Vehicle ID conflict, try again" }));
+        return;
+      }
+      const now = new Date().toISOString();
+      const vehicle: Vehicle = {
+        id: newId,
+        registrationNumber: payload.registrationNumber.trim(),
+        chassisNumber: payload.chassisNumber?.trim(),
+        make: payload.make.trim(),
+        model: payload.model.trim(),
+        year: payload.year,
+        numberOfWheels: payload.numberOfWheels,
+        tankCapacityLitres: payload.tankCapacityLitres,
+        emptyWeightKg: payload.emptyWeightKg,
+        maxGrossWeightKg: payload.maxGrossWeightKg,
+        maxSpeedKmh: payload.maxSpeedKmh ?? 90,
+        cnic: payload.cnic?.trim(),
+        tripStartDate: payload.tripStartDate ?? now,
+        tripEndDate: payload.tripEndDate,
+        status: "stopped",
+        driver: {
+          id: `DRV-${newId}`,
+          name: "Unassigned",
+          licenseNumber: "—",
+          phone: "—",
+          onDutySince: now,
+        },
+        route: {
+          id: `RT-${newId}`,
+          name: payload.origin && payload.destination ? `${payload.origin} → ${payload.destination}` : "Not Set",
+          waypoints: [],
+          origin: payload.origin ?? "—",
+          destination: payload.destination ?? "—",
+          estimatedArrival: payload.tripEndDate ?? now,
+        },
+        imageUrl: undefined,
+      };
+      augmentedVehicles[newId] = vehicle;
+      console.log(`Vehicle added: ${newId} — ${payload.make} ${payload.model} (${payload.registrationNumber})`);
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, vehicle }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Bad request" }));
+    }
+    return;
+  }
+
+  // GET /drivers — list all registered drivers
+  if (req.method === "GET" && req.url === "/drivers") {
+    res.writeHead(200, { "Content-Type": "application/json" });
+    res.end(JSON.stringify(Array.from(registeredDrivers.values())));
+    return;
+  }
+
+  // POST /drivers/register — register a new driver
+  if (req.method === "POST" && req.url === "/drivers/register") {
+    try {
+      const body = await readBody(req);
+      const { cnicNumber, name, phone, licenseNumber, fatherName, permanentAddress, vehicleId } =
+        JSON.parse(body) as Partial<RegisteredDriver>;
+      if (!cnicNumber || !name || !phone || !licenseNumber || !vehicleId) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Missing required fields: cnicNumber, name, phone, licenseNumber, vehicleId" }));
+        return;
+      }
+      if (!/^\d{5}-\d{7}-\d$/.test(cnicNumber)) {
+        res.writeHead(400, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "Invalid CNIC format. Expected XXXXX-XXXXXXX-X" }));
+        return;
+      }
+      if (registeredDrivers.has(cnicNumber)) {
+        res.writeHead(409, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "A driver with this CNIC is already registered" }));
+        return;
+      }
+      const driver: RegisteredDriver = {
+        id: `DRV-${Date.now()}`,
+        cnicNumber,
+        name: name.trim(),
+        phone: phone.trim(),
+        licenseNumber: licenseNumber.trim(),
+        fatherName: (fatherName ?? "").trim(),
+        permanentAddress: (permanentAddress ?? "").trim(),
+        vehicleId,
+        registeredAt: new Date().toISOString(),
+      };
+      registeredDrivers.set(cnicNumber, driver);
+      console.log(`Driver registered: ${name} (${cnicNumber}) → ${vehicleId}`);
+      res.writeHead(201, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ ok: true, driver }));
+    } catch {
+      res.writeHead(400, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({ error: "Bad request" }));
+    }
+    return;
+  }
+
+  // POST /drivers/auth — validate CNIC, return session for mobile login
+  if (req.method === "POST" && req.url === "/drivers/auth") {
+    try {
+      const body = await readBody(req);
+      const { cnicNumber } = JSON.parse(body) as { cnicNumber: string };
+      const driver = cnicNumber ? registeredDrivers.get(cnicNumber) : undefined;
+      if (!driver) {
+        res.writeHead(401, { "Content-Type": "application/json" });
+        res.end(JSON.stringify({ error: "CNIC not registered" }));
+        return;
+      }
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(JSON.stringify({
+        ok: true,
+        session: {
+          cnicNumber: driver.cnicNumber,
+          name: driver.name,
+          vehicleId: driver.vehicleId,
+          phone: driver.phone,
+        },
+      }));
     } catch {
       res.writeHead(400, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Bad request" }));

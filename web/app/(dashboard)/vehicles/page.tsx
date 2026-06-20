@@ -2,13 +2,14 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Truck } from "lucide-react";
+import { ArrowDown, ArrowUp, Truck, Plus } from "lucide-react";
 import { useTelemetry } from "@/lib/useTelemetry";
 import { speedWeightRatio, ratioBand } from "@oiltrack/types";
 import { formatNumber, formatDate, RATIO_BAND_COLORS } from "@/lib/formatters";
 import { deriveVehicleStatus } from "@/lib/vehicleStatus";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 
@@ -28,31 +29,39 @@ export default function VehiclesPage() {
 
   const rows = useMemo(() => {
     const list = Object.values(vehicles)
-      .filter((v) => latestFrames[v.id])
       .map((vehicle) => {
-        const frame = latestFrames[vehicle.id];
-        const ratio = speedWeightRatio(frame.speed.current, frame.weight.gross);
-        return { vehicle, frame, ratio, band: ratioBand(ratio), status: deriveVehicleStatus(frame) };
+        const frame = latestFrames[vehicle.id] ?? null;
+        const ratio = frame ? speedWeightRatio(frame.speed.current, frame.weight.gross) : null;
+        return {
+          vehicle,
+          frame,
+          ratio,
+          band: ratio !== null ? ratioBand(ratio) : ("normal" as const),
+          status: frame ? deriveVehicleStatus(frame) : ("stopped" as const),
+          online: !!frame,
+        };
       });
 
     list.sort((a, b) => {
+      // Online vehicles first
+      if (a.online !== b.online) return a.online ? -1 : 1;
       let cmp = 0;
       if (sortKey === "id")           cmp = a.vehicle.id.localeCompare(b.vehicle.id);
       if (sortKey === "registration") cmp = a.vehicle.registrationNumber.localeCompare(b.vehicle.registrationNumber);
       if (sortKey === "driver")       cmp = a.vehicle.driver.name.localeCompare(b.vehicle.driver.name);
       if (sortKey === "cnic")         cmp = (a.vehicle.driver.cnicNumber ?? "").localeCompare(b.vehicle.driver.cnicNumber ?? "");
-      if (sortKey === "speed")        cmp = a.frame.speed.current - b.frame.speed.current;
-      if (sortKey === "gross")        cmp = a.frame.weight.gross - b.frame.weight.gross;
-      if (sortKey === "temp")         cmp = a.frame.temperature.containerCelsius - b.frame.temperature.containerCelsius;
-      if (sortKey === "fuel")         cmp = a.frame.engine.fuelLevelPercent - b.frame.engine.fuelLevelPercent;
-      if (sortKey === "ratio")        cmp = a.ratio - b.ratio;
+      if (sortKey === "speed")        cmp = (a.frame?.speed.current ?? -1) - (b.frame?.speed.current ?? -1);
+      if (sortKey === "gross")        cmp = (a.frame?.weight.gross ?? -1) - (b.frame?.weight.gross ?? -1);
+      if (sortKey === "temp")         cmp = (a.frame?.temperature.containerCelsius ?? -1) - (b.frame?.temperature.containerCelsius ?? -1);
+      if (sortKey === "fuel")         cmp = (a.frame?.engine.fuelLevelPercent ?? -1) - (b.frame?.engine.fuelLevelPercent ?? -1);
+      if (sortKey === "ratio")        cmp = (a.ratio ?? -1) - (b.ratio ?? -1);
       if (sortKey === "status")       cmp = a.status.localeCompare(b.status);
       if (sortKey === "tripStart")    cmp = (a.vehicle.tripStartDate ?? "").localeCompare(b.vehicle.tripStartDate ?? "");
       if (sortKey === "tripEnd")      cmp = (a.vehicle.tripEndDate ?? "").localeCompare(b.vehicle.tripEndDate ?? "");
       return sortAsc ? cmp : -cmp;
     });
 
-    return list;
+      return list;
   }, [vehicles, latestFrames, sortKey, sortAsc]);
 
   function toggleSort(key: SortKey) {
@@ -80,9 +89,16 @@ export default function VehiclesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-foreground">Vehicles</h1>
-          <p className="text-xs text-muted-foreground mt-0.5">{rows.length} vehicles in fleet</p>
+          <p className="text-xs text-muted-foreground mt-0.5">
+            {rows.length} vehicles in fleet &middot; {rows.filter((r) => r.online).length} online
+          </p>
         </div>
-        <Truck className="h-5 w-5 text-muted-foreground" />
+        <Button asChild size="sm" className="gap-1.5">
+          <Link href="/vehicles/add">
+            <Plus className="h-4 w-4" />
+            Add Vehicle
+          </Link>
+        </Button>
       </div>
 
       <Card>
@@ -116,11 +132,16 @@ export default function VehiclesPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ vehicle, frame, ratio, band, status }) => {
-                    const hasAlert = frame.alerts.some((a) => !a.acknowledged);
-                    const sb = STATUS_BADGE[hasAlert ? "alert" : status];
+                  {rows.map(({ vehicle, frame, ratio, band, status, online }) => {
+                    const hasAlert = frame?.alerts.some((a) => !a.acknowledged) ?? false;
+                    const sb = online
+                      ? STATUS_BADGE[hasAlert ? "alert" : status]
+                      : { label: "Offline", variant: "secondary" as const };
                     return (
-                      <tr key={vehicle.id} className="border-b border-border/50 last:border-0 hover:bg-secondary/30 transition-colors">
+                      <tr key={vehicle.id} className={cn(
+                        "border-b border-border/50 last:border-0 hover:bg-secondary/30 transition-colors",
+                        !online && "opacity-60"
+                      )}>
                         <td className="px-3 py-2 text-xs">
                           <Link href={`/vehicles/${vehicle.id}`} className="font-semibold text-primary hover:underline">
                             {vehicle.id}
@@ -135,12 +156,21 @@ export default function VehiclesPage() {
                         <td className="px-3 py-2 text-xs text-foreground/60 hidden lg:table-cell font-mono">
                           {vehicle.driver.cnicNumber ?? "—"}
                         </td>
-                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground">{formatNumber(frame.speed.current, 0)} km/h</td>
-                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden md:table-cell">{formatNumber(frame.weight.gross, 0)} kg</td>
-                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden xl:table-cell">{formatNumber(frame.temperature.containerCelsius, 1)} °C</td>
-                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden lg:table-cell">{formatNumber(frame.engine.fuelLevelPercent, 0)}%</td>
-                        <td className="px-3 py-2 text-xs text-right font-semibold tabular-nums hidden sm:table-cell" style={{ color: RATIO_BAND_COLORS[band] }}>
-                          {formatNumber(ratio, 2)}
+                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground">
+                          {frame ? `${formatNumber(frame.speed.current, 0)} km/h` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden md:table-cell">
+                          {frame ? `${formatNumber(frame.weight.gross, 0)} kg` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden xl:table-cell">
+                          {frame ? `${formatNumber(frame.temperature.containerCelsius, 1)} °C` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden lg:table-cell">
+                          {frame ? `${formatNumber(frame.engine.fuelLevelPercent, 0)}%` : "—"}
+                        </td>
+                        <td className="px-3 py-2 text-xs text-right font-semibold tabular-nums hidden sm:table-cell"
+                          style={{ color: ratio !== null ? RATIO_BAND_COLORS[band] : undefined }}>
+                          {ratio !== null ? formatNumber(ratio, 2) : "—"}
                         </td>
                         <td className="px-3 py-2 text-xs text-foreground/60 hidden xl:table-cell whitespace-nowrap">
                           {formatDate(vehicle.tripStartDate)}

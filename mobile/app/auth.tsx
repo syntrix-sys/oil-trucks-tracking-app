@@ -13,7 +13,7 @@ import {
 import { router } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { formatCnic, getDriverByCnic, saveSession, validateCnic } from '@/lib/auth';
+import { formatCnic, isCnicFormatValid, authenticateDriver, saveSession } from '@/lib/auth';
 
 export default function AuthScreen() {
   const [cnic, setCnic]       = useState('');
@@ -28,19 +28,24 @@ export default function AuthScreen() {
   }
 
   async function handleLogin() {
-    if (!validateCnic(cnic)) {
-      setError('Invalid CNIC or not registered as a driver. Format: XXXXX-XXXXXXX-X');
+    if (!isCnicFormatValid(cnic)) {
+      setError('Invalid format. Expected: XXXXX-XXXXXXX-X');
       return;
     }
     setLoading(true);
-    const driver = getDriverByCnic(cnic);
-    if (!driver) {
-      setError('Driver not found.');
+    try {
+      const session = await authenticateDriver(cnic);
+      if (!session) {
+        setError('CNIC not registered. Contact your fleet manager to register your account.');
+        return;
+      }
+      await saveSession(session);
+      router.replace('/orders');
+    } catch {
+      setError('Could not reach the server. Check your network connection and try again.');
+    } finally {
       setLoading(false);
-      return;
     }
-    await saveSession(driver);
-    router.replace('/orders');
   }
 
   const isComplete = /^\d{5}-\d{7}-\d$/.test(cnic);
@@ -111,7 +116,7 @@ export default function AuthScreen() {
           <View style={styles.hint}>
             <Ionicons name="information-circle-outline" size={13} color="#475569" />
             <Text style={styles.hintText}>
-              Demo CNICs: 35202-1234567-9 · 42101-9876543-1 · 36302-5678901-2
+              Must be registered by a fleet manager in the web portal before you can sign in.
             </Text>
           </View>
         </View>

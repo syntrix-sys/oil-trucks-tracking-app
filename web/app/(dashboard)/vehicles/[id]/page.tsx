@@ -8,6 +8,7 @@ import VehicleSummaryCard from "@/components/vehicles/VehicleSummaryCard";
 import TelemetryGauges from "@/components/vehicles/TelemetryGauges";
 import VehicleCharts from "@/components/vehicles/VehicleCharts";
 import AlertsPanel from "@/components/vehicles/AlertsPanel";
+import LoadLogPanel from "@/components/vehicles/LoadLogPanel";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 
@@ -15,12 +16,13 @@ export default function VehicleDetailPage() {
   const params = useParams<{ id: string }>();
   const vehicleId = params.id;
 
-  const { vehicles, latestFrames, activeAlerts } = useTelemetry();
+  const { vehicles, latestFrames, activeAlerts, loadEntries } = useTelemetry();
   const history = useVehicleHistory(vehicleId);
 
   const vehicle = vehicles[vehicleId];
   const frame = latestFrames[vehicleId];
   const vehicleAlerts = activeAlerts.filter((a) => a.vehicleId === vehicleId);
+  const vehicleLoadEntries = loadEntries[vehicleId] ?? [];
 
   if (!vehicle || !frame) {
     return (
@@ -45,11 +47,12 @@ export default function VehicleDetailPage() {
       {/* Mobile: Tabs layout */}
       <div className="block lg:hidden">
         <Tabs defaultValue="summary">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="summary">Info</TabsTrigger>
             <TabsTrigger value="telemetry">Live</TabsTrigger>
             <TabsTrigger value="charts">Charts</TabsTrigger>
             <TabsTrigger value="alerts">Alerts</TabsTrigger>
+            <TabsTrigger value="load">Load</TabsTrigger>
           </TabsList>
           <TabsContent value="summary" className="mt-4">
             <VehicleSummaryCard vehicle={vehicle} frame={frame} />
@@ -63,15 +66,21 @@ export default function VehicleDetailPage() {
           <TabsContent value="alerts" className="mt-4">
             <AlertsPanel vehicle={vehicle} alerts={vehicleAlerts} />
           </TabsContent>
+          <TabsContent value="load" className="mt-4">
+            <LoadLogPanel vehicle={vehicle} entries={vehicleLoadEntries} />
+          </TabsContent>
         </Tabs>
       </div>
 
-      {/* Desktop: 4-column grid */}
+      {/* Desktop: grid */}
       <div className="hidden lg:grid lg:grid-cols-4 gap-4">
         <VehicleSummaryCard vehicle={vehicle} frame={frame} />
         <TelemetryGauges vehicle={vehicle} frame={frame} />
         <VehicleCharts vehicle={vehicle} history={history} />
         <AlertsPanel vehicle={vehicle} alerts={vehicleAlerts} />
+      </div>
+      <div className="hidden lg:block">
+        <LoadLogPanel vehicle={vehicle} entries={vehicleLoadEntries} />
       </div>
     </div>
   );

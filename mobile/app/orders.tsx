@@ -53,7 +53,12 @@ export default function OrdersScreen() {
           <Text style={styles.vehicle}>{session?.vehicleId ?? '—'}</Text>
         </View>
         <View style={styles.topbarRight}>
-          <EmergencyButton compact phone={session?.phone} />
+          <EmergencyButton
+            compact
+            phone={session?.phone}
+            vehicleId={session?.vehicleId}
+            driverName={session?.name}
+          />
           <TouchableOpacity onPress={handleLogout} style={styles.logoutBtn}>
             <Ionicons name="log-out-outline" size={20} color="#64748B" />
           </TouchableOpacity>

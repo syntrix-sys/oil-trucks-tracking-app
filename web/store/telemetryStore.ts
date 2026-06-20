@@ -2,6 +2,8 @@ import { create } from "zustand";
 import type {
   Alert,
   DriverAlertMessage,
+  LoadEntry,
+  PanicAlertMessage,
   TelemetryFrame,
   Vehicle,
 } from "@oiltrack/types";
@@ -10,12 +12,22 @@ export type ConnectionStatus = "connecting" | "connected" | "disconnected";
 
 const MAX_HISTORY_TICKS = 1800;
 
+export type PanicRecord = {
+  alertId: string;
+  vehicleId: string;
+  driverName: string;
+  location: { lat: number; lng: number } | null;
+  timestamp: string;
+};
+
 export interface TelemetryStoreState {
   vehicles: Record<string, Vehicle>;
   telemetry: Record<string, TelemetryFrame>;
   history: Record<string, TelemetryFrame[]>;
   activeAlerts: Alert[];
   driverAlerts: DriverAlertMessage[];
+  panicAlerts: Record<string, PanicRecord>;
+  loadEntries: Record<string, LoadEntry[]>;
   selectedVehicleId: string | null;
   connectionStatus: ConnectionStatus;
   currentTick: number;
@@ -26,6 +38,9 @@ export interface TelemetryStoreState {
   ingestTelemetryBatch: (tick: number, frames: Record<string, TelemetryFrame>) => void;
   ingestDriverAlert: (message: DriverAlertMessage) => void;
   ingestWeightUpdate: (vehicleId: string, cargoLitres: number) => void;
+  ingestPanicAlert: (message: PanicAlertMessage) => void;
+  clearPanicAlert: (vehicleId: string) => void;
+  ingestLoadUpdate: (vehicleId: string, entry: LoadEntry) => void;
   dismissDriverAlert: (vehicleId: string) => void;
   acknowledgeAlert: (alertId: string) => void;
   acknowledgeAllAlerts: (alertIds: string[]) => void;
@@ -39,6 +54,8 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
   history: {},
   activeAlerts: [],
   driverAlerts: [],
+  panicAlerts: {},
+  loadEntries: {},
   selectedVehicleId: null,
   connectionStatus: "connecting",
   currentTick: 0,
@@ -84,6 +101,29 @@ export const useTelemetryStore = create<TelemetryStoreState>((set, get) => ({
     set({
       cargoLitresOverrides: { ...get().cargoLitresOverrides, [vehicleId]: cargoLitres },
     });
+  },
+
+  ingestPanicAlert: (message) => {
+    const record: PanicRecord = {
+      alertId: message.alertId,
+      vehicleId: message.vehicleId,
+      driverName: message.driverName,
+      location: message.location,
+      timestamp: message.timestamp,
+    };
+    set({ panicAlerts: { ...get().panicAlerts, [message.vehicleId]: record } });
+  },
+
+  clearPanicAlert: (vehicleId) => {
+    const next = { ...get().panicAlerts };
+    delete next[vehicleId];
+    set({ panicAlerts: next });
+  },
+
+  ingestLoadUpdate: (vehicleId, entry) => {
+    const prev = get().loadEntries[vehicleId] ?? [];
+    const updated = [entry, ...prev.filter((e) => e.id !== entry.id)].slice(0, 50);
+    set({ loadEntries: { ...get().loadEntries, [vehicleId]: updated } });
   },
 
   dismissDriverAlert: (vehicleId) => {

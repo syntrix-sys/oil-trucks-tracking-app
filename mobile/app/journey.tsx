@@ -1,15 +1,25 @@
 // Screen 2: Active Journey Dashboard
 import { useEffect, useRef, useState } from 'react';
-import { Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as Location from 'expo-location';
 import { Ionicons } from '@expo/vector-icons';
 import { loadSession, type DriverSession } from '@/lib/auth';
-import { updateCargoWeight, WS_URL, type TelemetryFrame } from '@/lib/api';
+import { WS_URL, type TelemetryFrame } from '@/lib/api';
+import { reverseGeocode } from '@/lib/geocoding';
 import EmergencyButton from '@/components/EmergencyButton';
 import BreakModal from '@/components/BreakModal';
 import TelemetryGauge from '@/components/TelemetryGauge';
+import LoadManagementScreen from '@/components/LoadManagementScreen';
+import RecoveryPointsModal from '@/components/RecoveryPointsModal';
+
+// Tank capacity per vehicle — mirrors mock-server/src/vehicles.ts
+const TANK_CAPACITY: Record<string, number> = {
+  'TRK-001': 30000, 'TRK-002': 28000, 'TRK-003': 32000,
+  'TRK-004': 33000, 'TRK-005': 31000, 'TRK-006': 29000,
+  'TRK-007': 27000, 'TRK-008': 25000,
+};
 
 type JourneyStatus = 'active' | 'break' | 'stopped';
 
@@ -25,12 +35,14 @@ export default function JourneyScreen() {
   const [frame,    setFrame]    = useState<TelemetryFrame | null>(null);
   const [gps,      setGps]      = useState<GpsCoords | null>(null);
   const [cargoL,   setCargoL]   = useState<number | null>(null);
-  const [cargoInput, setCargoInput] = useState('');
-  const [status,   setStatus]   = useState<JourneyStatus>('active');
+  const [showLoad,     setShowLoad]     = useState(false);
+  const [showRecovery, setShowRecovery] = useState(false);
+  const [status,       setStatus]       = useState<JourneyStatus>('active');
   const [showBreak, setShowBreak] = useState(false);
   const [elapsed,  setElapsed]  = useState(0); // seconds
   const [locationGranted, setLocationGranted] = useState(false);
   const [locationBlocked, setLocationBlocked] = useState(false);
+  const [placeName, setPlaceName] = useState<string>('');
 
   const wsRef    = useRef<WebSocket | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -74,21 +86,11 @@ export default function JourneyScreen() {
         if (msg.type === 'TELEMETRY_BATCH' && msg.frames[vehicleId]) {
           const f: TelemetryFrame = msg.frames[vehicleId];
           setFrame(f);
-          // Sync cargo liters from server override if present
           if (f.weight.cargoLitres !== undefined) {
             setCargoL(f.weight.cargoLitres);
-            setCargoInput(String(Math.round(f.weight.cargoLitres)));
           } else if (cargoL === null) {
-            // Tank capacities per vehicle (mirrors vehicles.ts)
-            const TANK_CAPACITY: Record<string, number> = {
-              'TRK-001': 30000, 'TRK-002': 28000, 'TRK-003': 32000,
-              'TRK-004': 33000, 'TRK-005': 31000, 'TRK-006': 29000,
-              'TRK-007': 27000, 'TRK-008': 25000,
-            };
             const capacity = (vehicleId && TANK_CAPACITY[vehicleId]) ?? 28000;
-            const derived = Math.round((f.weight.percentFull / 100) * capacity);
-            setCargoL(derived);
-            setCargoInput(String(derived));
+            setCargoL(Math.round((f.weight.percentFull / 100) * capacity));
           }
         }
       } catch {}
@@ -104,18 +106,16 @@ export default function JourneyScreen() {
     return () => { if (timerRef.current) clearInterval(timerRef.current); };
   }, [status]);
 
-  async function handleCargoUpdate() {
-    const liters = parseFloat(cargoInput);
-    if (isNaN(liters) || liters < 0) return;
-    const vid = vehicleId ?? session?.vehicleId;
-    if (!vid) return;
-    setCargoL(liters);
-    try {
-      await updateCargoWeight(vid, liters);
-    } catch {
-      Alert.alert('Sync Failed', 'Could not send weight to server. Check your connection.');
-    }
-  }
+  // Reverse geocode when GPS changes (debounced via rounding to 2dp in the utility)
+  useEffect(() => {
+    if (!gps) return;
+    let cancelled = false;
+    setPlaceName('Locating…');
+    reverseGeocode(gps.lat, gps.lng).then((name) => {
+      if (!cancelled) setPlaceName(name);
+    });
+    return () => { cancelled = true; };
+  }, [gps ? Math.round(gps.lat * 100) : null, gps ? Math.round(gps.lng * 100) : null]);
 
   function handleBreakSave(reason: string, comments: string) {
     setStatus('break');
@@ -153,7 +153,7 @@ export default function JourneyScreen() {
   if (locationBlocked) {
     return (
       <SafeAreaView style={[styles.safe, styles.center]}>
-        <Ionicons name="location-off-outline" size={56} color="#EF4444" />
+        <Ionicons name="location-outline" size={56} color="#EF4444" />
         <Text style={styles.blockTitle}>Location Required</Text>
         <Text style={styles.blockSub}>
           OilTrack Pro requires location access to track your delivery journey.
@@ -177,7 +177,13 @@ export default function JourneyScreen() {
           <Text style={styles.headerTitle}>Active Journey</Text>
           <Text style={styles.headerVehicle}>{vid}</Text>
         </View>
-        <EmergencyButton compact phone={session?.phone} />
+        <EmergencyButton
+          compact
+          phone={session?.phone}
+          vehicleId={vid !== '—' ? vid : undefined}
+          driverName={session?.name}
+          location={gps}
+        />
       </View>
 
       {/* Status bar */}
@@ -203,6 +209,12 @@ export default function JourneyScreen() {
                   <CoordChip label="LAT" value={gps.lat.toFixed(5)} />
                   <CoordChip label="LNG" value={gps.lng.toFixed(5)} />
                 </View>
+                {placeName ? (
+                  <View style={styles.placeRow}>
+                    <Ionicons name="location" size={11} color="#3B82F6" />
+                    <Text style={styles.placeText} numberOfLines={1}>{placeName}</Text>
+                  </View>
+                ) : null}
                 {gps.accuracy !== null && (
                   <Text style={styles.accuracy}>GPS accuracy: ±{Math.round(gps.accuracy)} m</Text>
                 )}
@@ -213,30 +225,26 @@ export default function JourneyScreen() {
           </View>
         </View>
 
-        {/* Cargo Weight (Liters) */}
-        <View style={styles.section}>
-          <Row icon="water" iconColor="#F59E0B" label="Cargo Weight (Liters)" />
-          <View style={styles.cargoCard}>
-            <Text style={styles.cargoValue}>{cargoL !== null ? cargoL.toLocaleString() : '—'} L</Text>
-            <Text style={styles.cargoSub}>Live cargo load</Text>
-            <View style={styles.cargoInputRow}>
-              <TextInput
-                style={styles.cargoInput}
-                value={cargoInput}
-                onChangeText={setCargoInput}
-                keyboardType="numeric"
-                placeholder="Enter liters"
-                placeholderTextColor="#334155"
-                returnKeyType="done"
-                onSubmitEditing={handleCargoUpdate}
-              />
-              <TouchableOpacity style={styles.syncBtn} onPress={handleCargoUpdate} activeOpacity={0.8}>
-                <Ionicons name="cloud-upload-outline" size={16} color="#0F172A" />
-                <Text style={styles.syncBtnText}>Sync</Text>
-              </TouchableOpacity>
+        {/* Cargo Load — tap to open Load Management */}
+        <TouchableOpacity style={styles.section} onPress={() => setShowLoad(true)} activeOpacity={0.8}>
+          <Row icon="water" iconColor="#F59E0B" label="Cargo Load" />
+          <View style={styles.cargoChip}>
+            <View style={styles.cargoChipLeft}>
+              <Text style={styles.cargoChipLiters}>
+                {cargoL !== null ? cargoL.toLocaleString() : '—'} L
+              </Text>
+              {cargoL !== null && vid !== '—' && (
+                <Text style={styles.cargoChipPercent}>
+                  {Math.round((cargoL / (TANK_CAPACITY[vid] ?? 28000)) * 100)}% full
+                </Text>
+              )}
+            </View>
+            <View style={styles.cargoChipAction}>
+              <Ionicons name="create-outline" size={14} color="#F59E0B" />
+              <Text style={styles.cargoChipActionText}>Manage</Text>
             </View>
           </View>
-        </View>
+        </TouchableOpacity>
 
         {/* Telemetry Gauges */}
         <View style={styles.section}>
@@ -278,6 +286,20 @@ export default function JourneyScreen() {
           </View>
         </View>
 
+        {/* Recovery Points */}
+        <TouchableOpacity style={styles.recoveryBtn} onPress={() => setShowRecovery(true)} activeOpacity={0.8}>
+          <View style={styles.recoveryBtnLeft}>
+            <View style={styles.recoveryIconWrap}>
+              <Ionicons name="warning-outline" size={18} color="#EF4444" />
+            </View>
+            <View>
+              <Text style={styles.recoveryBtnTitle}>Need Help? Recovery Points</Text>
+              <Text style={styles.recoveryBtnSub}>Hospitals · Police · Mechanics · Fuel — within 15 km</Text>
+            </View>
+          </View>
+          <Ionicons name="chevron-forward" size={16} color="#EF4444" />
+        </TouchableOpacity>
+
         {/* Actions */}
         <View style={styles.section}>
           <Row icon="options" iconColor="#64748B" label="Journey Controls" />
@@ -306,6 +328,25 @@ export default function JourneyScreen() {
         visible={showBreak}
         onSave={handleBreakSave}
         onCancel={() => setShowBreak(false)}
+      />
+
+      <LoadManagementScreen
+        visible={showLoad}
+        vehicleId={vid !== '—' ? vid : (session?.vehicleId ?? 'TRK-001')}
+        tankCapacityLiters={TANK_CAPACITY[vid] ?? 28000}
+        currentLiters={cargoL ?? 0}
+        onClose={() => setShowLoad(false)}
+        onSynced={(liters) => {
+          setCargoL(liters);
+          setShowLoad(false);
+        }}
+      />
+
+      <RecoveryPointsModal
+        visible={showRecovery}
+        driverLat={gps?.lat ?? null}
+        driverLng={gps?.lng ?? null}
+        onClose={() => setShowRecovery(false)}
       />
     </SafeAreaView>
   );
@@ -368,22 +409,24 @@ const styles = StyleSheet.create({
 
   gpsBox: { gap: 8 },
   coordRow: { flexDirection: 'row', gap: 8 },
+  placeRow: { flexDirection: 'row', alignItems: 'center', gap: 5, justifyContent: 'center' },
+  placeText: { fontSize: 11, color: '#3B82F6', fontWeight: '600', flexShrink: 1 },
   accuracy: { fontSize: 10, color: '#475569', textAlign: 'center' },
   gpsWaiting: { fontSize: 12, color: '#475569', textAlign: 'center', paddingVertical: 8 },
 
-  cargoCard:     { alignItems: 'center', paddingVertical: 8, gap: 4 },
-  cargoValue:    { fontSize: 44, fontWeight: '800', color: '#F59E0B' },
-  cargoSub:      { fontSize: 11, color: '#64748B', marginBottom: 12 },
-  cargoInputRow: { flexDirection: 'row', gap: 8, width: '100%' },
-  cargoInput: {
-    flex: 1, backgroundColor: '#0F172A', borderRadius: 10, borderWidth: 1, borderColor: '#334155',
-    color: '#F1F5F9', fontSize: 15, paddingHorizontal: 12, height: 44, fontFamily: 'monospace',
+  cargoChip: {
+    flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', paddingVertical: 4,
   },
-  syncBtn: {
+  cargoChipLeft:   { gap: 2 },
+  cargoChipLiters: { fontSize: 32, fontWeight: '800', color: '#F59E0B' },
+  cargoChipPercent:{ fontSize: 12, color: '#64748B', fontWeight: '600' },
+  cargoChipAction: {
     flexDirection: 'row', alignItems: 'center', gap: 5,
-    backgroundColor: '#F59E0B', borderRadius: 10, paddingHorizontal: 14, height: 44,
+    backgroundColor: '#F59E0B20', borderRadius: 10, borderWidth: 1, borderColor: '#F59E0B40',
+    paddingHorizontal: 12, paddingVertical: 8,
   },
-  syncBtnText: { color: '#0F172A', fontWeight: '800', fontSize: 13 },
+  cargoChipActionText: { color: '#F59E0B', fontWeight: '700', fontSize: 12 },
 
   gaugeGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
 
@@ -409,4 +452,19 @@ const styles = StyleSheet.create({
   blockSub: { fontSize: 13, color: '#64748B', textAlign: 'center', lineHeight: 20, marginBottom: 24 },
   backBtn: { paddingVertical: 12, paddingHorizontal: 20, backgroundColor: '#1E293B', borderRadius: 10 },
   backBtnText: { color: '#94A3B8', fontSize: 14, fontWeight: '600' },
+
+  recoveryBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: '#EF444410', borderRadius: 16,
+    borderWidth: 1, borderColor: '#EF444430',
+    padding: 14,
+  },
+  recoveryBtnLeft:   { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  recoveryIconWrap:  {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: '#EF444420', borderWidth: 1, borderColor: '#EF444440',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  recoveryBtnTitle:  { fontSize: 14, fontWeight: '800', color: '#F1F5F9', marginBottom: 2 },
+  recoveryBtnSub:    { fontSize: 10, color: '#EF4444', opacity: 0.8 },
 });

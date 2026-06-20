@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
+const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? 'http://192.168.1.100:8080';
 const AUTH_KEY = 'oiltrack_driver_cnic';
 
 export interface DriverSession {
@@ -9,18 +10,6 @@ export interface DriverSession {
   phone: string;
 }
 
-// CNIC → driver session (mirrors mock-server/src/vehicles.ts)
-const DRIVER_MAP: Record<string, Omit<DriverSession, 'cnicNumber'>> = {
-  '35202-1234567-9': { name: 'Muhammad Usman', vehicleId: 'TRK-001', phone: '+92-301-2345001' },
-  '42101-9876543-1': { name: 'Ahmed Raza',      vehicleId: 'TRK-002', phone: '+92-302-2345002' },
-  '36302-5678901-2': { name: 'Ali Hassan',       vehicleId: 'TRK-003', phone: '+92-303-2345003' },
-  '61101-2345678-3': { name: 'Tariq Mahmood',    vehicleId: 'TRK-004', phone: '+92-304-2345004' },
-  '42201-3456789-4': { name: 'Bilal Shahzad',    vehicleId: 'TRK-005', phone: '+92-305-2345005' },
-  '35201-4567890-5': { name: 'Faisal Iqbal',     vehicleId: 'TRK-006', phone: '+92-306-2345006' },
-  '45501-5678901-6': { name: 'Nadeem Khan',       vehicleId: 'TRK-007', phone: '+92-307-2345007' },
-  '17301-6789012-7': { name: 'Zubair Ahmed',      vehicleId: 'TRK-008', phone: '+92-308-2345008' },
-};
-
 export function formatCnic(raw: string): string {
   const digits = raw.replace(/\D/g, '');
   if (digits.length <= 5)  return digits;
@@ -28,14 +17,22 @@ export function formatCnic(raw: string): string {
   return `${digits.slice(0, 5)}-${digits.slice(5, 12)}-${digits.slice(12, 13)}`;
 }
 
-export function validateCnic(cnic: string): boolean {
-  return /^\d{5}-\d{7}-\d$/.test(cnic) && cnic in DRIVER_MAP;
+export function isCnicFormatValid(cnic: string): boolean {
+  return /^\d{5}-\d{7}-\d$/.test(cnic);
 }
 
-export function getDriverByCnic(cnic: string): DriverSession | null {
-  const d = DRIVER_MAP[cnic];
-  if (!d) return null;
-  return { cnicNumber: cnic, ...d };
+// Validates CNIC against the server and returns a session on success.
+// Throws on network error; returns null if CNIC is not registered.
+export async function authenticateDriver(cnicNumber: string): Promise<DriverSession | null> {
+  const res = await fetch(`${SERVER_URL}/drivers/auth`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ cnicNumber }),
+  });
+  if (res.status === 401) return null;
+  if (!res.ok) throw new Error(`Auth server error: ${res.status}`);
+  const data = await res.json();
+  return data.session as DriverSession;
 }
 
 export async function saveSession(session: DriverSession): Promise<void> {

@@ -6,24 +6,24 @@ import { loadSession } from '@/lib/auth';
 import { Ionicons } from '@expo/vector-icons';
 
 export default function SplashScreen() {
-  const logoScale   = useRef(new Animated.Value(0.4)).current;
+  const logoScale = useRef(new Animated.Value(0.4)).current;
   const logoOpacity = useRef(new Animated.Value(0)).current;
   const textOpacity = useRef(new Animated.Value(0)).current;
   const glowOpacity = useRef(new Animated.Value(0)).current;
-  const tagOpacity  = useRef(new Animated.Value(0)).current;
+  const tagOpacity = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     Animated.sequence([
       // Logo appears
       Animated.parallel([
-        Animated.spring(logoScale,   { toValue: 1,   useNativeDriver: true, tension: 60, friction: 6 }),
-        Animated.timing(logoOpacity, { toValue: 1,   duration: 500, useNativeDriver: true }),
+        Animated.spring(logoScale, { toValue: 1, useNativeDriver: true, tension: 60, friction: 6 }),
+        Animated.timing(logoOpacity, { toValue: 1, duration: 500, useNativeDriver: true }),
         Animated.timing(glowOpacity, { toValue: 0.6, duration: 800, useNativeDriver: true }),
       ]),
       // Title appears
       Animated.timing(textOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
       // Tagline appears
-      Animated.timing(tagOpacity,  { toValue: 1, duration: 400, useNativeDriver: true }),
+      Animated.timing(tagOpacity, { toValue: 1, duration: 400, useNativeDriver: true }),
       // Hold
       Animated.delay(1000),
     ]).start(async () => {

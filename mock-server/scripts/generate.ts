@@ -95,6 +95,7 @@ for (const def of VEHICLE_DEFS) {
       containerTempCelsius: containerTemp,
       engineCoolantCelsius: coolantTemp,
       fuelLevelPercent: fuel,
+      location: { lat: pos.lat, lng: pos.lng },
     });
 
     for (const fa of forcedAlerts(def.id, tick, timestamp)) {

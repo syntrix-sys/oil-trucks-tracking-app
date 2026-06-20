@@ -133,7 +133,43 @@ export interface WeightUpdateMessage {
   updatedAt: string;
 }
 
-export type ServerMessage = TelemetryBatchMessage | DriverAlertMessage | WeightUpdateMessage;
+export interface PanicAlertMessage {
+  type: "PANIC_ALERT";
+  alertId: string;
+  vehicleId: string;
+  driverName: string;
+  location: { lat: number; lng: number } | null;
+  timestamp: string;
+}
+
+export interface PanicCancelledMessage {
+  type: "PANIC_CANCELLED";
+  vehicleId: string;
+  alertId: string;
+}
+
+export interface LoadEntry {
+  id: string;
+  vehicleId: string;
+  timestamp: string;
+  totalLiters: number;
+  note?: string;
+  syncedFromMobile: boolean;
+}
+
+export interface LoadUpdateMessage {
+  type: "LOAD_UPDATE";
+  vehicleId: string;
+  entry: LoadEntry;
+}
+
+export type ServerMessage =
+  | TelemetryBatchMessage
+  | DriverAlertMessage
+  | WeightUpdateMessage
+  | PanicAlertMessage
+  | PanicCancelledMessage
+  | LoadUpdateMessage;
 
 export interface StatusResponse {
   tick: number;

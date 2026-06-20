@@ -15,6 +15,9 @@ export function useWebSocketConnection() {
   const ingestTelemetryBatch = useTelemetryStore((s) => s.ingestTelemetryBatch);
   const ingestDriverAlert = useTelemetryStore((s) => s.ingestDriverAlert);
   const ingestWeightUpdate = useTelemetryStore((s) => s.ingestWeightUpdate);
+  const ingestPanicAlert = useTelemetryStore((s) => s.ingestPanicAlert);
+  const clearPanicAlert = useTelemetryStore((s) => s.clearPanicAlert);
+  const ingestLoadUpdate = useTelemetryStore((s) => s.ingestLoadUpdate);
   const setConnectionStatus = useTelemetryStore((s) => s.setConnectionStatus);
 
   const reconnectAttempt = useRef(0);
@@ -54,6 +57,12 @@ export function useWebSocketConnection() {
             ingestDriverAlert(message);
           } else if (message.type === "WEIGHT_UPDATE") {
             ingestWeightUpdate(message.vehicleId, message.cargoLitres);
+          } else if (message.type === "PANIC_ALERT") {
+            ingestPanicAlert(message);
+          } else if (message.type === "PANIC_CANCELLED") {
+            clearPanicAlert(message.vehicleId);
+          } else if (message.type === "LOAD_UPDATE") {
+            ingestLoadUpdate(message.vehicleId, message.entry);
           }
         } catch (err) {
           console.error("Failed to parse WS message:", err);
@@ -81,5 +90,5 @@ export function useWebSocketConnection() {
       if (reconnectTimer.current) clearTimeout(reconnectTimer.current);
       socketRef.current?.close();
     };
-  }, [ingestDriverAlert, ingestTelemetryBatch, ingestWeightUpdate, setConnectionStatus, setVehicles]);
+  }, [ingestDriverAlert, ingestTelemetryBatch, ingestWeightUpdate, ingestPanicAlert, clearPanicAlert, ingestLoadUpdate, setConnectionStatus, setVehicles]);
 }

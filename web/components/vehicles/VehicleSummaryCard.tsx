@@ -4,6 +4,7 @@ import type { TelemetryFrame, Vehicle } from "@oiltrack/types";
 import { Truck, Phone, BadgeCheck, MapPin, Clock, CreditCard, Gauge } from "lucide-react";
 import { formatDateTime, formatDate, formatNumber } from "@/lib/formatters";
 import { deriveVehicleStatus } from "@/lib/vehicleStatus";
+import { useReverseGeocode } from "@/lib/useReverseGeocode";
 import { useTelemetryStore } from "@/store/telemetryStore";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -26,6 +27,7 @@ export default function VehicleSummaryCard({ vehicle, frame }: VehicleSummaryCar
   const status = deriveVehicleStatus(frame);
   const sb = STATUS_BADGE[status] ?? STATUS_BADGE.stopped;
   const cargoLitresOverrides = useTelemetryStore((s) => s.cargoLitresOverrides);
+  const placeName = useReverseGeocode(frame.location.lat, frame.location.lng);
 
   // Prefer mobile override, then frame value, then derive from percentFull
   const cargoLitres =
@@ -38,7 +40,7 @@ export default function VehicleSummaryCard({ vehicle, frame }: VehicleSummaryCar
       <CardContent className="p-4 space-y-4">
         {/* Header */}
         <div className="flex items-center gap-3">
-          <div className="w-14 h-14 rounded-xl bg-primary/20 border border-primary/30 flex items-center justify-center shrink-0">
+          <div className="w-14 h-14 rounded-2xl clay flex items-center justify-center shrink-0">
             <Truck className="w-7 h-7 text-primary" />
           </div>
           <div className="min-w-0">
@@ -63,7 +65,7 @@ export default function VehicleSummaryCard({ vehicle, frame }: VehicleSummaryCar
             { label: "Chassis No.",   value: vehicle.chassisNumber ?? "—" },
             { label: "Wheels",        value: vehicle.numberOfWheels ? `${vehicle.numberOfWheels}` : "—" },
           ].map(({ label, value }) => (
-            <div key={label} className="bg-secondary/50 rounded-lg p-2.5">
+            <div key={label} className="bg-background clay rounded-xl p-2.5">
               <p className="text-muted-foreground">{label}</p>
               <p className="text-foreground font-medium mt-0.5 font-mono truncate">{value}</p>
             </div>
@@ -71,7 +73,7 @@ export default function VehicleSummaryCard({ vehicle, frame }: VehicleSummaryCar
         </div>
 
         {/* Live cargo liters — synced from mobile */}
-        <div className="flex items-center gap-3 bg-primary/10 border border-primary/20 rounded-lg p-3">
+        <div className="flex items-center gap-3 bg-background clay rounded-xl p-3">
           <Gauge className="h-5 w-5 text-primary shrink-0" />
           <div>
             <p className="text-xs text-muted-foreground">Cargo (Live Liters)</p>
@@ -94,11 +96,11 @@ export default function VehicleSummaryCard({ vehicle, frame }: VehicleSummaryCar
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Trip Schedule</p>
               <div className="grid grid-cols-2 gap-2 text-xs">
-                <div className="bg-secondary/50 rounded-lg p-2.5">
+                <div className="bg-background clay rounded-xl p-2.5">
                   <p className="text-muted-foreground">Trip Start</p>
                   <p className="text-foreground font-medium mt-0.5">{formatDate(vehicle.tripStartDate)}</p>
                 </div>
-                <div className="bg-secondary/50 rounded-lg p-2.5">
+                <div className="bg-background clay rounded-xl p-2.5">
                   <p className="text-muted-foreground">Trip End</p>
                   <p className="text-foreground font-medium mt-0.5">{formatDate(vehicle.tripEndDate)}</p>
                 </div>
@@ -114,7 +116,7 @@ export default function VehicleSummaryCard({ vehicle, frame }: VehicleSummaryCar
           <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Driver</p>
           <div className="flex items-center gap-3">
             <Avatar className="h-10 w-10">
-              <AvatarFallback className="bg-primary/20 text-primary text-sm font-bold">
+              <AvatarFallback className="bg-background clay text-primary text-sm font-bold">
                 {vehicle.driver.name.charAt(0)}
               </AvatarFallback>
             </Avatar>
@@ -163,6 +165,10 @@ export default function VehicleSummaryCard({ vehicle, frame }: VehicleSummaryCar
           <p className="text-xs text-muted-foreground flex items-center gap-1 mt-2">
             <Clock className="h-3 w-3 shrink-0" /> ETA {formatDateTime(vehicle.route.estimatedArrival)}
           </p>
+          <div className="flex items-center gap-1.5 mt-2 text-xs bg-background clay rounded-xl px-2.5 py-1.5">
+            <MapPin className="h-3 w-3 text-primary shrink-0" />
+            <span className="text-primary truncate">{placeName || "Locating…"}</span>
+          </div>
         </div>
       </CardContent>
     </Card>

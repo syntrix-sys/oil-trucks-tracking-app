@@ -1,28 +1,25 @@
 import * as React from "react"
 import { cva, type VariantProps } from "class-variance-authority"
 import { Slot } from "radix-ui"
-
 import { cn } from "@/lib/utils"
 
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 dark:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full px-3 py-0.5 text-xs font-bold whitespace-nowrap transition-colors [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
-        default:     "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
-        secondary:   "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
-        destructive: "bg-destructive text-white focus-visible:ring-destructive/20 dark:bg-destructive/60 dark:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
-        outline:     "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost:       "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        link:        "text-primary underline-offset-4 [a&]:hover:underline",
-        success:     "bg-success/20 text-success border-success/30",
-        warning:     "bg-warning/20 text-warning border-warning/30",
-        info:        "bg-blue-500/20 text-blue-400 border-blue-500/30",
+        default:     "bg-primary text-primary-foreground border-2 border-[#1b6438]",
+        secondary:   "bg-white text-foreground border-2 border-black/10 shadow-[0_2px_0_rgba(0,0,0,0.08)]",
+        destructive: "bg-red-100 text-red-700 border-2 border-red-300",
+        outline:     "border-2 border-border text-foreground bg-white",
+        ghost:       "text-muted-foreground bg-background",
+        link:        "text-primary underline-offset-4 hover:underline",
+        success:     "bg-emerald-100 text-emerald-700 border-2 border-emerald-300",
+        warning:     "bg-amber-100 text-amber-700 border-2 border-amber-300",
+        info:        "bg-sky-100 text-sky-700 border-2 border-sky-300",
       },
     },
-    defaultVariants: {
-      variant: "default",
-    },
+    defaultVariants: { variant: "default" },
   }
 )
 
@@ -34,7 +31,6 @@ function Badge({
 }: React.ComponentProps<"span"> &
   VariantProps<typeof badgeVariants> & { asChild?: boolean }) {
   const Comp = asChild ? Slot.Root : "span"
-
   return (
     <Comp
       data-slot="badge"
