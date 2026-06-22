@@ -3,6 +3,7 @@
 import { useEffect, useRef } from "react";
 import { Siren, MapPin, User, Clock, Phone } from "lucide-react";
 import { useTelemetryStore } from "@/store/telemetryStore";
+import { HTTP_URL } from "@/lib/config";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -67,8 +68,7 @@ export default function PanicAlertOverlay() {
     if (!panic) return;
     // Tell server panic is cancelled (dispatcher acknowledged)
     try {
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
-      await fetch(`${wsUrl.replace(/^ws/, "http")}/vehicle/${panic.vehicleId}/panic/cancel`, {
+      await fetch(`${HTTP_URL}/vehicle/${panic.vehicleId}/panic/cancel`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ alertId: panic.alertId }),

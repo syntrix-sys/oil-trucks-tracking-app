@@ -1,8 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowDown, ArrowUp, Truck, Plus } from "lucide-react";
+import { ArrowDown, ArrowUp, Plus } from "lucide-react";
 import { useTelemetry } from "@/lib/useTelemetry";
 import { speedWeightRatio, ratioBand } from "@oiltrack/types";
 import { formatNumber, formatDate, RATIO_BAND_COLORS } from "@/lib/formatters";
@@ -12,8 +12,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SortKey = "id" | "registration" | "driver" | "cnic" | "speed" | "gross" | "temp" | "fuel" | "ratio" | "status" | "tripStart" | "tripEnd";
+type SpeedUnit  = "kmh" | "mph";
+type WeightUnit = "kg"  | "litres" | "gallons";
 
 const STATUS_BADGE = {
   moving:  { label: "Moving",  variant: "success"     as const },
@@ -22,28 +25,96 @@ const STATUS_BADGE = {
   alert:   { label: "Alert",   variant: "destructive" as const },
 };
 
+const SPEED_LABEL:  Record<SpeedUnit,  string> = { kmh: "km/h", mph: "mph" };
+const WEIGHT_LABEL: Record<WeightUnit, string> = { kg: "kg", litres: "L", gallons: "gal" };
+
+const OIL_DENSITY_KG_PER_L = 0.85;
+const L_PER_GAL = 3.78541;
+
+function nextSpeed(u: SpeedUnit):  SpeedUnit  { return u === "kmh" ? "mph" : "kmh"; }
+function nextWeight(u: WeightUnit): WeightUnit { return u === "kg" ? "litres" : u === "litres" ? "gallons" : "kg"; }
+
+function convertSpeed(kmh: number, unit: SpeedUnit): string {
+  const val = unit === "kmh" ? kmh : kmh * 0.621371;
+  return `${formatNumber(val, 0)} ${SPEED_LABEL[unit]}`;
+}
+function convertWeight(kg: number, unit: WeightUnit): string {
+  if (unit === "kg")      return `${formatNumber(kg, 0)} kg`;
+  const litres = kg / OIL_DENSITY_KG_PER_L;
+  if (unit === "litres")  return `${formatNumber(litres, 0)} L`;
+  return `${formatNumber(litres / L_PER_GAL, 0)} gal`;
+}
+
+/** Small pill button used in cells to cycle the unit for that row. */
+function UnitPill({ label, onClick }: { label: string; onClick: (e: React.MouseEvent) => void }) {
+  return (
+    <button
+      onClick={onClick}
+      title="Click to change unit"
+      className={cn(
+        "text-[10px] font-semibold px-1.5 py-0.5 rounded-md transition-colors cursor-pointer select-none",
+        "bg-muted text-muted-foreground hover:bg-primary/15 hover:text-primary"
+      )}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function VehiclesPage() {
   const { vehicles, latestFrames } = useTelemetry();
   const [sortKey, setSortKey] = useState<SortKey>("id");
   const [sortAsc, setSortAsc] = useState(true);
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
+  // ── Global unit defaults (header toggle resets all rows) ──────────────
+  const [globalSpeed,  setGlobalSpeed]  = useState<SpeedUnit>("kmh");
+  const [globalWeight, setGlobalWeight] = useState<WeightUnit>("kg");
+
+  // ── Per-row overrides (individual row toggle) ─────────────────────────
+  const [speedOv,  setSpeedOv]  = useState<Record<string, SpeedUnit>>({});
+  const [weightOv, setWeightOv] = useState<Record<string, WeightUnit>>({});
+
+  const rowSpeed  = (id: string): SpeedUnit  => speedOv[id]  ?? globalSpeed;
+  const rowWeight = (id: string): WeightUnit => weightOv[id] ?? globalWeight;
+
+  function cycleRowSpeed(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setSpeedOv(p => ({ ...p, [id]: nextSpeed(rowSpeed(id)) }));
+  }
+  function cycleRowWeight(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setWeightOv(p => ({ ...p, [id]: nextWeight(rowWeight(id)) }));
+  }
+  function cycleGlobalSpeed(e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = nextSpeed(globalSpeed);
+    setGlobalSpeed(next);
+    setSpeedOv({});  // reset per-row overrides
+  }
+  function cycleGlobalWeight(e: React.MouseEvent) {
+    e.stopPropagation();
+    const next = nextWeight(globalWeight);
+    setGlobalWeight(next);
+    setWeightOv({});
+  }
+
+  // ── Rows ──────────────────────────────────────────────────────────────
   const rows = useMemo(() => {
-    const list = Object.values(vehicles)
-      .map((vehicle) => {
-        const frame = latestFrames[vehicle.id] ?? null;
-        const ratio = frame ? speedWeightRatio(frame.speed.current, frame.weight.gross) : null;
-        return {
-          vehicle,
-          frame,
-          ratio,
-          band: ratio !== null ? ratioBand(ratio) : ("normal" as const),
-          status: frame ? deriveVehicleStatus(frame) : ("stopped" as const),
-          online: !!frame,
-        };
-      });
+    if (!mounted) return [];
+    const list = Object.values(vehicles).map((vehicle) => {
+      const frame = latestFrames[vehicle.id] ?? null;
+      const ratio = frame ? speedWeightRatio(frame.speed.current, frame.weight.gross) : null;
+      return {
+        vehicle, frame, ratio,
+        band:   ratio !== null ? ratioBand(ratio) : ("normal" as const),
+        status: frame ? deriveVehicleStatus(frame) : ("stopped" as const),
+        online: !!frame,
+      };
+    });
 
     list.sort((a, b) => {
-      // Online vehicles first
       if (a.online !== b.online) return a.online ? -1 : 1;
       let cmp = 0;
       if (sortKey === "id")           cmp = a.vehicle.id.localeCompare(b.vehicle.id);
@@ -61,8 +132,8 @@ export default function VehiclesPage() {
       return sortAsc ? cmp : -cmp;
     });
 
-      return list;
-  }, [vehicles, latestFrames, sortKey, sortAsc]);
+    return list;
+  }, [mounted, vehicles, latestFrames, sortKey, sortAsc]);
 
   function toggleSort(key: SortKey) {
     if (sortKey === key) setSortAsc((a) => !a);
@@ -121,22 +192,66 @@ export default function VehiclesPage() {
                           col.hidden
                         )}
                       >
-                        <span className="inline-flex items-center gap-1">
-                          {col.label}
-                          {sortKey === col.key && (
-                            sortAsc ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />
-                          )}
-                        </span>
+                        {/* Speed header — sort label + global unit toggle */}
+                        {col.key === "speed" ? (
+                          <span className="inline-flex items-center gap-1 justify-end w-full">
+                            {col.label}
+                            {sortKey === col.key && (sortAsc ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                            <button
+                              onClick={cycleGlobalSpeed}
+                              title="Click to change all rows"
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/25 transition-colors"
+                            >
+                              {SPEED_LABEL[globalSpeed]}
+                            </button>
+                          </span>
+                        ) : col.key === "gross" ? (
+                          <span className="inline-flex items-center gap-1 justify-end w-full">
+                            {col.label}
+                            {sortKey === col.key && (sortAsc ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                            <button
+                              onClick={cycleGlobalWeight}
+                              title="Click to change all rows"
+                              className="text-[9px] font-bold px-1.5 py-0.5 rounded-md bg-primary/10 text-primary hover:bg-primary/25 transition-colors"
+                            >
+                              {WEIGHT_LABEL[globalWeight]}
+                            </button>
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            {col.label}
+                            {sortKey === col.key && (sortAsc ? <ArrowUp className="w-3 h-3" /> : <ArrowDown className="w-3 h-3" />)}
+                          </span>
+                        )}
                       </th>
                     ))}
                   </tr>
                 </thead>
                 <tbody>
-                  {rows.map(({ vehicle, frame, ratio, band, status, online }) => {
+                  {!mounted ? (
+                    Array.from({ length: 8 }).map((_, i) => (
+                      <tr key={i} className="border-b border-border/50">
+                        <td className="px-3 py-2"><Skeleton className="h-3.5 w-16" /></td>
+                        <td className="px-3 py-2 hidden sm:table-cell"><Skeleton className="h-3.5 w-24" /></td>
+                        <td className="px-3 py-2 hidden md:table-cell"><Skeleton className="h-3.5 w-28" /></td>
+                        <td className="px-3 py-2 hidden lg:table-cell"><Skeleton className="h-3.5 w-32" /></td>
+                        <td className="px-3 py-2"><Skeleton className="h-3.5 w-16 ml-auto" /></td>
+                        <td className="px-3 py-2 hidden md:table-cell"><Skeleton className="h-3.5 w-20 ml-auto" /></td>
+                        <td className="px-3 py-2 hidden xl:table-cell"><Skeleton className="h-3.5 w-16 ml-auto" /></td>
+                        <td className="px-3 py-2 hidden lg:table-cell"><Skeleton className="h-3.5 w-12 ml-auto" /></td>
+                        <td className="px-3 py-2 hidden sm:table-cell"><Skeleton className="h-3.5 w-12 ml-auto" /></td>
+                        <td className="px-3 py-2 hidden xl:table-cell"><Skeleton className="h-3.5 w-20" /></td>
+                        <td className="px-3 py-2 hidden xl:table-cell"><Skeleton className="h-3.5 w-20" /></td>
+                        <td className="px-3 py-2"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                      </tr>
+                    ))
+                  ) : rows.map(({ vehicle, frame, ratio, band, status, online }) => {
                     const hasAlert = frame?.alerts.some((a) => !a.acknowledged) ?? false;
                     const sb = online
                       ? STATUS_BADGE[hasAlert ? "alert" : status]
                       : { label: "Offline", variant: "secondary" as const };
+                    const su = rowSpeed(vehicle.id);
+                    const wu = rowWeight(vehicle.id);
                     return (
                       <tr key={vehicle.id} className={cn(
                         "border-b border-border/50 last:border-0 hover:bg-secondary/30 transition-colors",
@@ -156,12 +271,35 @@ export default function VehiclesPage() {
                         <td className="px-3 py-2 text-xs text-foreground/60 hidden lg:table-cell font-mono">
                           {vehicle.driver.cnicNumber ?? "—"}
                         </td>
+
+                        {/* Speed — per-row unit toggle */}
                         <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground">
-                          {frame ? `${formatNumber(frame.speed.current, 0)} km/h` : "—"}
+                          {frame ? (
+                            <span className="inline-flex items-center justify-end gap-1.5">
+                              <span className="tabular-nums">
+                                {formatNumber(su === "mph" ? frame.speed.current * 0.621371 : frame.speed.current, 0)}
+                              </span>
+                              <UnitPill label={SPEED_LABEL[su]} onClick={(e) => cycleRowSpeed(vehicle.id, e)} />
+                            </span>
+                          ) : "—"}
                         </td>
+
+                        {/* Gross Weight — per-row unit toggle */}
                         <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden md:table-cell">
-                          {frame ? `${formatNumber(frame.weight.gross, 0)} kg` : "—"}
+                          {frame ? (
+                            <span className="inline-flex items-center justify-end gap-1.5">
+                              <span className="tabular-nums">
+                                {wu === "kg"
+                                  ? formatNumber(frame.weight.gross, 0)
+                                  : wu === "litres"
+                                  ? formatNumber(frame.weight.gross / OIL_DENSITY_KG_PER_L, 0)
+                                  : formatNumber(frame.weight.gross / OIL_DENSITY_KG_PER_L / L_PER_GAL, 0)}
+                              </span>
+                              <UnitPill label={WEIGHT_LABEL[wu]} onClick={(e) => cycleRowWeight(vehicle.id, e)} />
+                            </span>
+                          ) : "—"}
                         </td>
+
                         <td className="px-3 py-2 text-xs text-right tabular-nums text-foreground hidden xl:table-cell">
                           {frame ? `${formatNumber(frame.temperature.containerCelsius, 1)} °C` : "—"}
                         </td>

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { useTelemetry } from "@/lib/useTelemetry";
 
-const SERVER = process.env.NEXT_PUBLIC_WS_URL?.replace(/^ws/, "http") ?? "http://localhost:8080";
+import { HTTP_URL as SERVER } from "@/lib/config";
 
 const MAKES = ["Volvo","Mercedes-Benz","MAN","Scania","DAF","Isuzu","Hino","FAW","Shacman","Other"];
 const WHEEL_OPTIONS = [6, 10, 12, 18, 22];

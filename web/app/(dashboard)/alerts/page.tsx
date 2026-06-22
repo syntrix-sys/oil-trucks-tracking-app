@@ -1,6 +1,6 @@
 "use client";
 
-import { useDeferredValue, useMemo, useRef, useState, useTransition } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { ArrowDown, ArrowUp, Check, Download, FileText, RefreshCw } from "lucide-react";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -23,6 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
+import { Skeleton } from "@/components/ui/skeleton";
 
 type SortKey = "time" | "vehicle" | "type" | "severity" | "status";
 
@@ -39,6 +40,10 @@ export default function AlertsPage() {
   const { vehicles, activeAlerts } = useTelemetry();
   const acknowledgeAllAlerts = useTelemetryStore((s) => s.acknowledgeAllAlerts);
   const acknowledgeAlert     = useTelemetryStore((s) => s.acknowledgeAlert);
+
+  // Defer all data work until after the first paint so the page shell appears instantly
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
 
   // --- filter/sort state (instant UI response) ---
   const [vehicleFilter,   setVehicleFilter]   = useState<string>("all");
@@ -66,8 +71,9 @@ export default function AlertsPage() {
 
   const tableRef = useRef<HTMLDivElement>(null);
 
-  // Heavy work — runs asynchronously via deferred values
+  // Heavy work — skipped entirely until after first paint (mounted gate)
   const allRows = useMemo(() => {
+    if (!mounted) return [];
     let list = [...dAlerts];
     if (dVehicleFilter !== "all") list = list.filter((a) => a.vehicleId === dVehicleFilter);
     list = list.filter((a) => dSeverityFilter.has(a.severity));
@@ -84,7 +90,7 @@ export default function AlertsPage() {
       return dSortAsc ? cmp : -cmp;
     });
     return list;
-  }, [dAlerts, dVehicleFilter, dSeverityFilter, dDateFrom, dDateTo, dSortKey, dSortAsc]);
+  }, [mounted, dAlerts, dVehicleFilter, dSeverityFilter, dDateFrom, dDateTo, dSortKey, dSortAsc]);
 
   // Only the current page slice enters the DOM — prevents thousands of rows
   const totalPages = Math.max(1, Math.ceil(allRows.length / PAGE_SIZE));
@@ -318,54 +324,69 @@ export default function AlertsPage() {
                   </thead>
 
                   <tbody>
-                    {pageRows.map((alert) => (
-                      <tr
-                        key={alert.id}
-                        className={cn(
-                          "border-b border-border/50 last:border-0 hover:bg-secondary/30 transition-colors",
-                          alert.severity === "critical" && !alert.acknowledged && "bg-destructive/5"
+                    {!mounted ? (
+                      Array.from({ length: 10 }).map((_, i) => (
+                        <tr key={i} className="border-b border-border/50">
+                          <td className="px-4 py-3"><Skeleton className="h-4 w-4 rounded" /></td>
+                          <td className="px-4 py-3"><Skeleton className="h-3.5 w-32" /></td>
+                          <td className="px-4 py-3"><Skeleton className="h-3.5 w-16" /></td>
+                          <td className="px-4 py-3 hidden sm:table-cell"><Skeleton className="h-3.5 w-28" /></td>
+                          <td className="px-4 py-3"><Skeleton className="h-5 w-16 rounded-full" /></td>
+                          <td className="px-4 py-3"><Skeleton className="h-3.5 w-20" /></td>
+                          <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-3.5 w-48" /></td>
+                        </tr>
+                      ))
+                    ) : (
+                      <>
+                        {pageRows.map((alert) => (
+                          <tr
+                            key={alert.id}
+                            className={cn(
+                              "border-b border-border/50 last:border-0 hover:bg-secondary/30 transition-colors",
+                              alert.severity === "critical" && !alert.acknowledged && "bg-destructive/5"
+                            )}
+                          >
+                            <td className="px-4 py-3">
+                              <Checkbox
+                                checked={selected.has(alert.id)}
+                                onCheckedChange={() => toggleSelect(alert.id)}
+                              />
+                            </td>
+                            <td className="px-4 py-3 text-foreground/80 whitespace-nowrap">{formatDateTime(alert.triggeredAt)}</td>
+                            <td className="px-4 py-3 font-medium text-primary">{alert.vehicleId}</td>
+                            <td className="px-4 py-3 text-foreground/80 hidden sm:table-cell">
+                              {alert.type.replace(/_/g, " ")}
+                            </td>
+                            <td className="px-4 py-3">
+                              <Badge variant={SEV_VARIANT[alert.severity]}>{alert.severity}</Badge>
+                            </td>
+                            <td className="px-4 py-3">
+                              {alert.acknowledged ? (
+                                <span className="text-xs text-muted-foreground">Acknowledged</span>
+                              ) : (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 text-xs text-primary px-2"
+                                  onClick={() => acknowledgeAlert(alert.id)}
+                                >
+                                  Acknowledge
+                                </Button>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-foreground/80 max-w-xs truncate hidden md:table-cell">
+                              {alert.message}
+                            </td>
+                          </tr>
+                        ))}
+                        {pageRows.length === 0 && !isPending && (
+                          <tr>
+                            <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
+                              No alerts match the current filters.
+                            </td>
+                          </tr>
                         )}
-                      >
-                        <td className="px-4 py-3">
-                          <Checkbox
-                            checked={selected.has(alert.id)}
-                            onCheckedChange={() => toggleSelect(alert.id)}
-                          />
-                        </td>
-                        <td className="px-4 py-3 text-foreground/80 whitespace-nowrap">{formatDateTime(alert.triggeredAt)}</td>
-                        <td className="px-4 py-3 font-medium text-primary">{alert.vehicleId}</td>
-                        <td className="px-4 py-3 text-foreground/80 hidden sm:table-cell">
-                          {alert.type.replace(/_/g, " ")}
-                        </td>
-                        <td className="px-4 py-3">
-                          <Badge variant={SEV_VARIANT[alert.severity]}>{alert.severity}</Badge>
-                        </td>
-                        <td className="px-4 py-3">
-                          {alert.acknowledged ? (
-                            <span className="text-xs text-muted-foreground">Acknowledged</span>
-                          ) : (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              className="h-6 text-xs text-primary px-2"
-                              onClick={() => acknowledgeAlert(alert.id)}
-                            >
-                              Acknowledge
-                            </Button>
-                          )}
-                        </td>
-                        <td className="px-4 py-3 text-foreground/80 max-w-xs truncate hidden md:table-cell">
-                          {alert.message}
-                        </td>
-                      </tr>
-                    ))}
-
-                    {pageRows.length === 0 && !isPending && (
-                      <tr>
-                        <td colSpan={7} className="px-4 py-10 text-center text-sm text-muted-foreground">
-                          No alerts match the current filters.
-                        </td>
-                      </tr>
+                      </>
                     )}
                   </tbody>
                 </table>

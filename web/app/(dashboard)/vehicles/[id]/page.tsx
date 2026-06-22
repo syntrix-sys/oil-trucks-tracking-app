@@ -72,15 +72,20 @@ export default function VehicleDetailPage() {
         </Tabs>
       </div>
 
-      {/* Desktop: grid */}
-      <div className="hidden lg:grid lg:grid-cols-4 gap-4">
+      {/* Desktop: asymmetric 3-column layout */}
+      <div className="hidden lg:grid lg:grid-cols-[300px_1fr_320px] gap-4 items-start">
+        {/* Col 1: Vehicle identity + driver info */}
         <VehicleSummaryCard vehicle={vehicle} frame={frame} />
-        <TelemetryGauges vehicle={vehicle} frame={frame} />
-        <VehicleCharts vehicle={vehicle} history={history} />
+
+        {/* Col 2: Live gauges stacked above telemetry charts */}
+        <div className="space-y-4">
+          <TelemetryGauges vehicle={vehicle} frame={frame} />
+          <VehicleCharts vehicle={vehicle} history={history} />
+          <LoadLogPanel vehicle={vehicle} entries={vehicleLoadEntries} />
+        </div>
+
+        {/* Col 3: Alerts panel — full height scrollable */}
         <AlertsPanel vehicle={vehicle} alerts={vehicleAlerts} />
-      </div>
-      <div className="hidden lg:block">
-        <LoadLogPanel vehicle={vehicle} entries={vehicleLoadEntries} />
       </div>
     </div>
   );

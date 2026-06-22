@@ -3,7 +3,7 @@
 import { useTelemetryStore } from "@/store/telemetryStore";
 import type { Vehicle } from "@oiltrack/types";
 
-const HTTP_URL = (process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080").replace(/^ws/, "http");
+import { HTTP_URL } from "@/lib/config";
 
 /**
  * Convenience hook exposing the live fleet telemetry state.

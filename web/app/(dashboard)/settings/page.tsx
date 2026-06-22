@@ -10,8 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
-const HTTP_URL = WS_URL.replace(/^ws/, "http");
+import { WS_URL, HTTP_URL } from "@/lib/config";
 
 export default function SettingsPage() {
   const { connectionStatus, currentTick } = useTelemetry();

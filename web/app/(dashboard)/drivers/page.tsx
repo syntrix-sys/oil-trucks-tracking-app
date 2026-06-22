@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 
-const SERVER = process.env.NEXT_PUBLIC_WS_URL?.replace(/^ws/, "http") ?? "http://localhost:8080";
+import { HTTP_URL as SERVER } from "@/lib/config";
 
 const VEHICLES = [
   "TRK-001","TRK-002","TRK-003","TRK-004",

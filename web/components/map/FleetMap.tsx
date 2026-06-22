@@ -6,6 +6,8 @@ import "maplibre-gl/dist/maplibre-gl.css";
 import type { TelemetryFrame, Vehicle } from "@oiltrack/types";
 import { STATUS_COLORS } from "@/lib/formatters";
 import { deriveVehicleStatus } from "@/lib/vehicleStatus";
+import { useRoadRoutes } from "@/lib/useRoadRoutes";
+import { truckColor } from "@/lib/truckColors";
 import VehiclePopupCard from "./VehiclePopupCard";
 
 // Free CartoDB GL styles — no API key required.
@@ -39,6 +41,9 @@ export default function FleetMap({
 
   const vehicleList = useMemo(() => Object.values(vehicles), [vehicles]);
 
+  // Road-snapped routes from OSRM — fetched once, fall back to straight lines if unavailable
+  const roadRoutes = useRoadRoutes(showRoutes ? vehicles : {});
+
   const initialViewState = useMemo(() => {
     const first = vehicleList[0];
     const frame = first ? telemetry[first.id] : undefined;
@@ -67,7 +72,17 @@ export default function FleetMap({
 
       {showRoutes &&
         vehicleList.map((vehicle) => {
-          const coords = vehicle.route.waypoints.map((w) => [w.lng, w.lat]);
+          const color = truckColor(vehicle.id);
+          const isSelected = selectedVehicleId === vehicle.id;
+
+          // Use OSRM road-snapped coords when available; fall back to straight-line waypoints
+          const roadCoords = roadRoutes[vehicle.id];
+          const coords: [number, number][] = roadCoords
+            ? roadCoords
+            : vehicle.route.waypoints.map((w) => [w.lng, w.lat] as [number, number]);
+
+          const isLoading = !(vehicle.id in roadRoutes);
+
           return (
             <Source
               key={`route-${vehicle.id}`}
@@ -79,14 +94,27 @@ export default function FleetMap({
                 geometry: { type: "LineString", coordinates: coords },
               }}
             >
+              {/* Soft glow behind selected route */}
+              {isSelected && (
+                <Layer
+                  id={`route-glow-${vehicle.id}`}
+                  type="line"
+                  paint={{
+                    "line-color": color,
+                    "line-width": 12,
+                    "line-opacity": 0.2,
+                    "line-blur": 6,
+                  }}
+                />
+              )}
               <Layer
                 id={`route-line-${vehicle.id}`}
                 type="line"
                 paint={{
-                  "line-color": "#3B82F6",
-                  "line-width": 2,
-                  "line-opacity": 0.4,
-                  "line-dasharray": [2, 2],
+                  "line-color": color,
+                  "line-width": isSelected ? 4 : 2.5,
+                  "line-opacity": isLoading ? 0.12 : isSelected ? 0.95 : 0.55,
+                  "line-dasharray": roadCoords ? [1, 0] : [3, 2],
                 }}
               />
             </Source>
@@ -97,7 +125,8 @@ export default function FleetMap({
         const frame = telemetry[vehicle.id];
         if (!frame) return null;
         const status = deriveVehicleStatus(frame);
-        const color = STATUS_COLORS[status];
+        const statusColor = STATUS_COLORS[status];
+        const vehicleColor = truckColor(vehicle.id);
         const isSelected = selectedVehicleId === vehicle.id;
 
         return (
@@ -114,26 +143,35 @@ export default function FleetMap({
           >
             <div
               className="relative flex items-center justify-center cursor-pointer"
-              style={{ width: 36, height: 36 }}
+              style={{ width: 40, height: 40 }}
               title={vehicle.id}
             >
+              {/* Outer ring — truck identity color */}
               <div
-                className={`absolute inset-0 rounded-full ${status === "alert" ? "animate-pulse-ring" : ""}`}
+                className="absolute inset-0 rounded-full"
                 style={{
-                  backgroundColor: color,
-                  opacity: 0.25,
-                  transform: isSelected ? "scale(1.4)" : "scale(1)",
+                  border: `2.5px solid ${vehicleColor}`,
+                  opacity: isSelected ? 1 : 0.75,
+                  transform: isSelected ? "scale(1.25)" : "scale(1)",
+                  transition: "transform 0.15s ease",
                 }}
               />
+              {/* Inner fill — status color */}
+              <div
+                className={`absolute inset-1 rounded-full ${status === "alert" ? "animate-pulse-ring" : ""}`}
+                style={{ backgroundColor: statusColor, opacity: 0.3 }}
+              />
+              {/* Truck icon */}
               <img
                 src="/icons/tanker.svg"
                 alt={vehicle.id}
-                width={22}
-                height={22}
+                width={20}
+                height={20}
                 style={{
                   transform: `rotate(${frame.location.bearing}deg)`,
-                  color,
-                  filter: isSelected ? "drop-shadow(0 0 4px white)" : undefined,
+                  filter: isSelected
+                    ? `drop-shadow(0 0 3px ${vehicleColor})`
+                    : undefined,
                 }}
               />
             </div>

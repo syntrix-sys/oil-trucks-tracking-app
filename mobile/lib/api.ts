@@ -1,4 +1,4 @@
-const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? 'http://192.168.1.100:8080';
+const SERVER_URL = process.env.EXPO_PUBLIC_SERVER_URL ?? 'http://localhost:8080';
 
 export const WS_URL = SERVER_URL.replace(/^http/, 'ws');
 

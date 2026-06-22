@@ -1,9 +1,11 @@
 "use client";
 
+import { useMemo } from "react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import type { TelemetryFrame, Vehicle } from "@oiltrack/types";
 import { STATUS_COLORS, formatNumber, statusLabel } from "@/lib/formatters";
 import { deriveVehicleStatus } from "@/lib/vehicleStatus";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 
 interface DailyFleetSummaryProps {
   vehicles: Record<string, Vehicle>;
@@ -11,76 +13,107 @@ interface DailyFleetSummaryProps {
   latestFrames: Record<string, TelemetryFrame>;
 }
 
+const CHART_GRID   = "hsl(var(--border))";
+const CHART_TICK   = "hsl(var(--muted-foreground))";
+const TOOLTIP_STYLE = {
+  backgroundColor: "hsl(var(--popover))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: 8,
+  fontSize: 12,
+  color: "hsl(var(--popover-foreground))",
+};
+
 export default function DailyFleetSummary({ vehicles, history, latestFrames }: DailyFleetSummaryProps) {
-  const speedData = Object.values(vehicles).map((v) => {
+  const speedData = useMemo(() => Object.values(vehicles).map((v) => {
     const frames = history[v.id] ?? [];
     const avg = frames.length ? frames.reduce((s, f) => s + f.speed.current, 0) / frames.length : 0;
     const max = frames.reduce((m, f) => Math.max(m, f.speed.current), 0);
     return { id: v.id, avg: Math.round(avg * 10) / 10, max: Math.round(max * 10) / 10 };
-  });
+  }), [vehicles, history]);
 
-  const statusCounts = { moving: 0, idle: 0, stopped: 0, alert: 0 };
-  Object.values(latestFrames).forEach((frame) => {
-    statusCounts[deriveVehicleStatus(frame)] += 1;
-  });
-  const pieData = Object.entries(statusCounts)
-    .filter(([, count]) => count > 0)
-    .map(([status, count]) => ({ name: statusLabel(status as keyof typeof statusCounts), value: count, status }));
+  const { statusCounts, pieData } = useMemo(() => {
+    const counts = { moving: 0, idle: 0, stopped: 0, alert: 0 };
+    Object.values(latestFrames).forEach((frame) => { counts[deriveVehicleStatus(frame)] += 1; });
+    const pie = Object.entries(counts)
+      .filter(([, c]) => c > 0)
+      .map(([status, count]) => ({ name: statusLabel(status as keyof typeof counts), value: count, status }));
+    return { statusCounts: counts, pieData: pie };
+  }, [latestFrames]);
 
-  const totalDistance = Object.values(history).reduce((sum, frames) => {
+  const totalDistance = useMemo(() => Object.values(history).reduce((sum, frames) => {
     if (frames.length < 2) return sum;
     return sum + (frames[frames.length - 1].engine.odometerKm - frames[0].engine.odometerKm);
-  }, 0);
+  }, 0), [history]);
+
+  const activeAlertCount = useMemo(
+    () => Object.values(latestFrames).reduce((s, f) => s + f.alerts.filter((a) => !a.acknowledged).length, 0),
+    [latestFrames]
+  );
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <SummaryCard label="Vehicles" value={Object.keys(vehicles).length.toString()} />
-        <SummaryCard label="Currently Moving" value={statusCounts.moving.toString()} />
-        <SummaryCard label="Active Alerts" value={Object.values(latestFrames).reduce((s, f) => s + f.alerts.filter((a) => !a.acknowledged).length, 0).toString()} />
-        <SummaryCard label="Distance Covered (Session)" value={`${formatNumber(totalDistance, 1)} km`} />
+      {/* KPI cards */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <KpiCard label="Vehicles" value={Object.keys(vehicles).length.toString()} />
+        <KpiCard label="Currently Moving" value={statusCounts.moving.toString()} accent />
+        <KpiCard label="Active Alerts" value={activeAlertCount.toString()} danger={activeAlertCount > 0} />
+        <KpiCard label="Session Distance" value={`${formatNumber(totalDistance, 1)} km`} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <div className="bg-surface border border-slate-700 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Average / Max Speed per Vehicle</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={speedData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-              <XAxis dataKey="id" tick={{ fill: "#94A3B8", fontSize: 11 }} axisLine={{ stroke: "#334155" }} tickLine={false} />
-              <YAxis tick={{ fill: "#94A3B8", fontSize: 11 }} axisLine={{ stroke: "#334155" }} tickLine={false} />
-              <Tooltip contentStyle={{ backgroundColor: "#1E293B", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="avg" name="Avg km/h" fill="#3B82F6" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="max" name="Max km/h" fill="#F4A01C" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Speed bar chart */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Avg / Max Speed per Vehicle</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <BarChart data={speedData} margin={{ top: 4, right: 8, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID} vertical={false} />
+                <XAxis dataKey="id" tick={{ fill: CHART_TICK, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fill: CHART_TICK, fontSize: 11 }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={TOOLTIP_STYLE} cursor={{ fill: "hsl(var(--accent))" }} />
+                <Legend wrapperStyle={{ fontSize: 12, color: CHART_TICK }} />
+                <Bar dataKey="avg" name="Avg km/h" fill="#3B82F6" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="max" name="Max km/h" fill="#F59E0B" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
 
-        <div className="bg-surface border border-slate-700 rounded-xl p-4">
-          <h3 className="text-sm font-semibold text-text-primary mb-3">Fleet Status Distribution</h3>
-          <ResponsiveContainer width="100%" height={240}>
-            <PieChart>
-              <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
-                {pieData.map((entry) => (
-                  <Cell key={entry.status} fill={STATUS_COLORS[entry.status as keyof typeof STATUS_COLORS]} />
-                ))}
-              </Pie>
-              <Tooltip contentStyle={{ backgroundColor: "#1E293B", border: "1px solid #334155", borderRadius: 8, fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
-          </ResponsiveContainer>
-        </div>
+        {/* Status pie chart */}
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm">Fleet Status Distribution</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ResponsiveContainer width="100%" height={220}>
+              <PieChart>
+                <Pie data={pieData} dataKey="value" nameKey="name" cx="50%" cy="50%" outerRadius={80} label>
+                  {pieData.map((entry) => (
+                    <Cell key={entry.status} fill={STATUS_COLORS[entry.status as keyof typeof STATUS_COLORS]} />
+                  ))}
+                </Pie>
+                <Tooltip contentStyle={TOOLTIP_STYLE} />
+                <Legend wrapperStyle={{ fontSize: 12, color: CHART_TICK }} />
+              </PieChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: string }) {
+function KpiCard({ label, value, accent, danger }: { label: string; value: string; accent?: boolean; danger?: boolean }) {
   return (
-    <div className="bg-surface border border-slate-700 rounded-xl p-4">
-      <p className="text-xs uppercase tracking-wide text-slate-400 mb-1">{label}</p>
-      <p className="text-2xl font-bold text-text-primary">{value}</p>
-    </div>
+    <Card>
+      <CardContent className="p-4">
+        <p className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{label}</p>
+        <p className={`text-2xl font-bold ${danger ? "text-destructive" : accent ? "text-primary" : "text-foreground"}`}>
+          {value}
+        </p>
+      </CardContent>
+    </Card>
   );
 }

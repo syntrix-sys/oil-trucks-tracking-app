@@ -4,8 +4,7 @@ import { useEffect, useRef } from "react";
 import type { ServerMessage, Vehicle } from "@oiltrack/types";
 import { useTelemetryStore } from "@/store/telemetryStore";
 
-const WS_URL = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080";
-const HTTP_URL = WS_URL.replace(/^ws/, "http");
+import { WS_URL, HTTP_URL } from "@/lib/config";
 
 const MAX_BACKOFF_MS = 15000;
 const INITIAL_BACKOFF_MS = 1000;
